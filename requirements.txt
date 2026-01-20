@@ -1,0 +1,10 @@
+opencv-python
+numpy
+gradio
+pyttsx3
+Pillow
+scikit-learn
+tensorflow
+cvzone
+openai
+python-dotenv

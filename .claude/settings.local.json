@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python app.py:*)",
+      "Bash(timeout 10 ping:*)",
+      "Bash(nul)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(python test_openai.py:*)",
+      "Bash(python:*)",
+      "Bash(timeout 10 python:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(timeout 15 python:*)",
+      "Bash(timeout 20 python:*)",
+      "Bash(start /B python app.py)",
+      "Bash(app_output.txt)",
+      "Bash(ping:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
