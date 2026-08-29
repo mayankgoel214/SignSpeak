@@ -757,6 +757,9 @@ footer a:hover { color: var(--accent); }
   font-size: var(--t-micro);
   color: var(--n-700);
 }
+/* Declarative rather than a JS toggle: the same state attribute that drives the
+   rest of the live styling drives this, so it cannot silently fail to fire. */
+.device[data-live="true"] .readout__hint { display: none; }
 .ranked li[data-placeholder="true"] b { color: var(--n-600); }
 .ranked li[data-placeholder="true"] .pct { color: var(--n-600); }
 

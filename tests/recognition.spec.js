@@ -181,6 +181,9 @@ test.describe("the live camera path", () => {
     await expect(page.locator("#letter")).toHaveText(target.letter, { timeout: 30_000 });
     await expect(page.locator("#ranked li")).toHaveCount(3);
     await expect(page.locator('#ranked li[data-placeholder="true"]')).toHaveCount(0);
+    // The panel's idle explainer must give way once there are real predictions
+    // to read; it sat there through an entire recorded walkthrough once.
+    await expect(page.locator("#readout-hint")).toBeHidden();
     // A steady hand must eventually commit exactly one letter, not a stream of them.
     await expect(page.locator("#spelled")).toHaveText(target.letter, { timeout: 30_000 });
 

@@ -113,8 +113,11 @@ const run = async () => {
 
   await page.evaluate(() => window.scrollTo(0, 0));
   await shoot(page, "04-verdict", page.locator("#verdict"));
-  await shoot(page, "05-errors", page.locator("#perletter").locator("xpath=ancestor::div[contains(@class,\'card\')]"));
-  await shoot(page, "06-matrix", page.locator("#matrix").locator("xpath=ancestor::div[contains(@class,\'card\')]"));
+  // `.cards` is the grid and `.card` is a cell, so match the class token exactly
+  // rather than as a substring.
+  const CARD = "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')]";
+  await shoot(page, "05-errors", page.locator("#perletter").locator(CARD));
+  await shoot(page, "06-matrix", page.locator("#matrix").locator(CARD));
   await shoot(page, "07-alphabet", page.locator("#alphabet .alphabet-layout"));
 
   // A phone-sized pass, because half the people who open a link open it there.
