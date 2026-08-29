@@ -23,17 +23,27 @@ BUILD = os.path.join(ROOT, "docs", "build")
 OUT = os.path.join(ROOT, "docs", "signspeak-demo.mp4")
 
 W, H = 1920, 1080
-BG = (11, 17, 32)
-INK = (232, 238, 249)
-DIM = (148, 163, 184)
-ACCENT = (125, 211, 252)
+BG = (20, 20, 19)
+INK = (243, 242, 237)
+DIM = (169, 169, 158)
+ACCENT = (245, 187, 100)
 
-BOLD = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-REGULAR = "/System/Library/Fonts/Supplemental/Arial.ttf"
+# PIL cannot read the woff2 the site ships, so the video renderer carries the
+# same typeface as a variable TTF and sets the weight axis directly. Same font,
+# same palette, so the walkthrough looks like the thing it is showing.
+INTER = os.path.join(ROOT, "scripts", "fonts", "InterVariable.ttf")
 
 
-def font(path, size):
-    return ImageFont.truetype(path, size)
+def font(weight, size):
+    f = ImageFont.truetype(INTER, size)
+    try:
+        f.set_variation_by_axes([weight])
+    except Exception:
+        pass
+    return f
+
+
+BOLD, REGULAR = 660, 400
 
 
 # (frame name, heading, body, seconds). A frame of None is a text-only card.
@@ -41,33 +51,38 @@ SCRIPT = [
     (None, "SignSpeak",
      "American Sign Language fingerspelling, recognised in the browser.\n"
      "MediaPipe hand landmarks into a small PyTorch classifier.", 4.0),
-    ("01-landing", "The whole thing runs on the visitor's device",
-     "No upload, no GPU hosting, no account. The page is static files and the\n"
-     "classifier is 52,000 parameters.", 5.0),
+    ("01-landing", "The demo is the page",
+     "No account, no upload, no GPU behind it. The classifier is 52,000 parameters\n"
+     "and it runs on the visitor's own device.", 5.0),
     ("02-camera-started", "Camera on",
      "Everything past this point is the deployed page at signspeak-asl.vercel.app.\n"
      "The hand in the frame is a recorded dataset image played in as a webcam —\n"
      "nobody here can sign — but the tracking, the model and the readout are real.", 6.5),
     ("03-letter-1-S", "S",
-     "MediaPipe finds 21 landmarks. They are centred on the wrist, rotated upright\n"
+     "MediaPipe returns 21 landmarks. They are centred on the wrist, rotated upright\n"
      "and scaled, so what reaches the model is shape alone.", 4.5),
     ("03-letter-2-I", "I",
-     "A letter is only committed after the same sign holds steadily for about half a\n"
+     "The ring fills as a sign is held. A letter is only committed after about half a\n"
      "second, so the buffer does not fill with poses the hand passed through.", 4.5),
     ("03-letter-3-G", "G", "", 3.0),
     ("03-letter-4-N", "S I G N",
      "Four letters, spelled through the live page.", 4.0),
-    ("04-numbers", "The number, measured two ways",
+    ("04-verdict", "The number, measured two ways",
      "92.2% on a signer the model has never seen — leave-one-signer-out over five\n"
      "people, every one of 65,522 samples held out exactly once, per-fold 87.5–95.4%.\n"
-     "98.7% on a random split of the same data, which is the number not to trust.", 8.0),
-    ("05-chart", "What the model actually learned",
-     "Each hand is a real pose from the training data, drawn from its landmarks —\n"
-     "not an illustration of what the letter should look like.", 5.5),
-    ("07-failures", "Where it fails, from the confusion matrix",
-     "R goes to U one time in five. P and Q trade places because the rotation\n"
-     "normalisation that makes the model work on a stranger is exactly what erases\n"
-     "the difference between them. J and Z are not here at all: both are movement.", 8.0),
+     "98.7% on a random split of the same data, published as the number not to trust.", 8.0),
+    ("05-errors", "Where the errors actually are",
+     "Every letter scores between 70% and 99%, so accuracy bars from zero would be 24\n"
+     "near-identical full bars — and shortening the baseline to fix that is the oldest\n"
+     "lie in charting. This plots what is left over instead.", 7.5),
+    ("06-matrix", "What it confuses, and why",
+     "The diagonal is greyed on purpose: a single ramp over the whole matrix is\n"
+     "dominated by it and hides every error. R goes to U one time in five. P and Q\n"
+     "trade places because the rotation step that makes the model work on a stranger\n"
+     "is exactly what erases the difference between them.", 9.0),
+    ("07-alphabet", "The reference is also a chart",
+     "Each hand is a real pose from the training data, redrawn from its landmarks.\n"
+     "The bar under each cell is that letter's measured accuracy.", 6.0),
     ("08-mobile", "And on a phone", "", 4.0),
     (None, "signspeak-asl.vercel.app",
      "Source, evaluation script and the full protocol:\n"
