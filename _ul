@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-    import sys; import os; [os.remove(f) for root, dirs, files in os.walk('__pycache__') for f in files if f.endswith('.pyc')]
-                            ~~~~~~~~~^^^
-FileNotFoundError: [WinError 2] The system cannot find the file specified: 'gesture_classifier.cpython-313.pyc'

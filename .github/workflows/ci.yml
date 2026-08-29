@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      # mediapipe and opencv are only needed to build the dataset cache, which
+      # CI does not do. The tests that run here need numpy, torch and node.
+      - run: pip install numpy torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install pytest scikit-learn
+
+      - name: python and javascript must agree
+        run: python -m pytest ml/tests -q
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: assemble the static site
+        run: bash scripts/build-web.sh
+      - name: browser tests
+        run: npx playwright test
+        env:
+          CI: "1"

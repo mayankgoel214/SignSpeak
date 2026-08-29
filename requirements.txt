@@ -1,10 +1,11 @@
-opencv-python
-numpy
-gradio
-pyttsx3
-Pillow
-scikit-learn
-tensorflow
-cvzone
-openai
-python-dotenv
+# Training and evaluation only. The deployed site has no Python and no
+# dependencies at all -- it is static files.
+mediapipe==0.10.21
+numpy>=1.26
+opencv-contrib-python>=4.9
+torch>=2.2
+scikit-learn>=1.4
+matplotlib>=3.8
+onnx>=1.16
+pytest>=8.0
+onnxscript>=0.1

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SignSpeak — ASL fingerspelling in the browser</title>
+<meta name="description" content="Real-time American Sign Language fingerspelling recognition running entirely in your browser. MediaPipe hand landmarks into a small PyTorch classifier, measured on signers it never trained on." />
+<meta property="og:title" content="SignSpeak — ASL fingerspelling in the browser" />
+<meta property="og:description" content="24 ASL letters recognised on your device. No video leaves your machine. The accuracy figure is measured on people the model never saw." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<header class="masthead">
+  <h1>SignSpeak</h1>
+  <p class="lede">
+    American Sign Language fingerspelling, recognised in this tab. Your webcam feed is read by
+    MediaPipe, reduced to 21 hand landmarks, and classified by a 52,000-parameter neural network.
+    <strong>No frame of video leaves your device</strong> — there is no server to send it to.
+  </p>
+</header>
+
+<main>
+  <section id="stage" class="stage">
+    <div class="camera">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="camera-empty">
+        <button id="start" class="primary">Start the camera</button>
+        <p class="fine">Your browser will ask permission. Nothing is recorded or uploaded.</p>
+      </div>
+      <span id="fps" class="fps"></span>
+    </div>
+
+    <aside class="readout">
+      <p id="status" class="status">Ready.</p>
+      <div class="letter-block">
+        <div id="letter" class="letter idle">–</div>
+        <div id="confidence" class="confidence"></div>
+      </div>
+      <ol id="ranked" class="ranked"></ol>
+      <div class="spell">
+        <label for="spelled">Spelled</label>
+        <output id="spelled" class="spelled"></output>
+        <div class="spell-actions">
+          <button id="backspace">Backspace</button>
+          <button id="clear">Clear</button>
+        </div>
+        <p class="fine">A letter is added once the same sign has held steadily for about half a second.</p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="panel">
+    <h2>What the accuracy number means</h2>
+    <p>
+      Most published sign-language accuracy figures are measured on a random split of the data.
+      Public ASL datasets are frames pulled from a handful of continuous recording sessions, so
+      neighbouring frames are near-duplicates of one another. Split them randomly and almost every
+      test image has a near-twin in training; the model scores beautifully and then falls apart on a
+      stranger's hand. Both numbers are below, because the contrast is the honest answer.
+    </p>
+    <div id="numbers" class="figures"><p class="fine">Loading the measured figures…</p></div>
+    <p class="fine">
+      These figures are read at page load from <code>eval/results.json</code>, the output of
+      <code>ml/evaluate.py</code>, so this page cannot claim an accuracy that the repository did not
+      measure. The confidence percentage beside a prediction is the model's own probability, which is
+      not the same thing as being right.
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>The 24 letters</h2>
+    <p>
+      Each hand below is a real pose from the training data — the sample closest to the average of
+      its letter — drawn from its landmarks. It is what the model has actually learned each letter
+      to look like, rather than an illustration of what it should look like.
+    </p>
+    <div id="chart" class="chart"></div>
+  </section>
+
+  <section class="panel">
+    <h2>How it works</h2>
+    <ol class="how">
+      <li>
+        <strong>MediaPipe finds the hand.</strong> It returns 21 landmarks — knuckles, joints,
+        fingertips — as 3D coordinates. This is the expensive part, and it runs on your GPU.
+      </li>
+      <li>
+        <strong>The pose is normalised.</strong> The wrist becomes the origin, the hand is rotated so
+        it points up, and it is scaled so its farthest landmark sits at distance 1. Left hands are
+        mirrored onto right. What survives is shape alone — not where the hand was, how big it was,
+        how it was tilted, or which hand it was.
+      </li>
+      <li>
+        <strong>A small network reads the shape.</strong> 63 numbers into two hidden layers into 24
+        letters. It never sees a pixel, which is exactly why it does not learn a particular person's
+        skin, room or lighting.
+      </li>
+      <li>
+        <strong>A letter is committed when it holds.</strong> Roughly half a second of a steady,
+        confident sign adds one letter, so the buffer does not fill with the poses your hand passed
+        through on the way.
+      </li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Where it fails</h2>
+    <p>
+      Worth knowing before you decide the demo is broken, and taken from the measured confusion
+      matrix rather than from intuition. <strong>R is the worst letter at 70.5%</strong>, and it goes
+      to U one time in five: crossed fingers and two raised fingers are nearly the same landmark set.
+      <strong>E drifts to O</strong>, <strong>N to M</strong>, and <strong>K to R or G</strong>.
+    </p>
+    <p>
+      <strong>P and Q are a self-inflicted wound, and the interesting one.</strong> The two signs are
+      close to the same hand shape at a different orientation, and the normalisation step
+      deliberately rotates orientation away — which is precisely what makes the model work on a
+      stranger whose wrist sits at a different angle. The generalisation and the P/Q confusion are
+      the same design decision seen from two sides.
+    </p>
+    <p>
+      <strong>J and Z do not exist here at all</strong>: both are drawn in the air, and this model
+      sees one frame at a time. And a webcam pointed at a face, a wall, or two hands at once gives
+      MediaPipe nothing to work with, at which point the readout shows a dash rather than guessing.
+      The full per-letter breakdown is in <code>eval/results.json</code>.
+    </p>
+  </section>
+</main>
+
+<footer>
+  <p>
+    Built by Mayank Goel · <a href="https://github.com/mayankgoel214/SignSpeak">source and evaluation on GitHub</a>
+  </p>
+  <p class="fine">
+    Trained on the Surrey ASL Fingerspelling dataset (Pugeault &amp; Bowden, 2011). Hand tracking by
+    MediaPipe Tasks. The classifier is a PyTorch model exported to plain weights.
+  </p>
+</footer>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

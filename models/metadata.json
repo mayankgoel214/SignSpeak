@@ -1,0 +1,19 @@
+{
+  "input": "63 floats: 21 MediaPipe hand landmarks (x, y, z), wrist-centred, rotation-aligned, scale-normalized",
+  "output": "24 logits, argmax over labels.json",
+  "trained_on": {
+    "dataset": "Surrey ASL Fingerspelling (Pugeault & Bowden, 2011)",
+    "samples": 65522,
+    "signers": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E"
+    ]
+  },
+  "expected_accuracy_on_a_new_signer": 0.9217,
+  "measured_by": "ml/evaluate.py, leave-one-signer-out; see eval/results.json",
+  "seed": 20260829,
+  "epochs": 60
+}
