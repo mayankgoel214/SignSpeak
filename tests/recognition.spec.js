@@ -18,7 +18,7 @@ test.describe("the model, in the browser, on real images", () => {
 
   test("agrees with Python and gets the letters right", async ({ page }) => {
     await page.goto("/index.html");
-    await expect(page.locator(".chart-cell")).toHaveCount(24, { timeout: 30_000 });
+    await expect(page.locator(".glyphcell")).toHaveCount(24, { timeout: 30_000 });
 
     const report = await page.evaluate(async ({ cases, padRatio, DELEGATE }) => {
       const { FilesetResolver, HandLandmarker } = await import("./vendor/mediapipe/vision_bundle.mjs");
@@ -175,15 +175,24 @@ test.describe("the live camera path", () => {
 
     await page.goto("/index.html");
     await page.locator("#start").click();
-    await expect(page.locator("#status")).toHaveText(/Running on your device/, { timeout: 60_000 });
-    await expect(page.locator("#stage")).toHaveClass(/live/);
+    await expect(page.locator("#status")).toHaveAttribute("data-kind", "ok", { timeout: 60_000 });
+    await expect(page.locator("#device")).toHaveAttribute("data-live", "true");
 
     await expect(page.locator("#letter")).toHaveText(target.letter, { timeout: 30_000 });
     await expect(page.locator("#ranked li")).toHaveCount(3);
+    await expect(page.locator('#ranked li[data-placeholder="true"]')).toHaveCount(0);
     // A steady hand must eventually commit exactly one letter, not a stream of them.
     await expect(page.locator("#spelled")).toHaveText(target.letter, { timeout: 30_000 });
 
     await page.locator("#backspace").click();
     await expect(page.locator("#spelled")).toHaveText("");
+
+    // Space stops the camera, and stopping must actually release the track
+    // rather than only changing how the panel looks.
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Space");
+    await expect(page.locator("#device")).toHaveAttribute("data-live", "false");
+    await expect(page.locator("#status")).toHaveText(/Camera stopped/);
+    expect(await page.evaluate(() => document.getElementById("video").srcObject)).toBeNull();
   });
 });

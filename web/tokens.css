@@ -1,0 +1,92 @@
+/* Design tokens.
+ *
+ * Two scales and nothing else. Neutrals are a warm near-black, not the blue-grey
+ * that every developer portfolio ships; amber is the single accent, and it means
+ * one thing consistently: signal coming off the camera, or a value coming off the
+ * measurement. Steps follow the Geist convention -- 100 is the default surface,
+ * 400 the default border, 900 secondary text, 1000 primary -- so elevation and
+ * state are expressed by moving a step rather than by inventing a colour.
+ *
+ * The page is deliberately dark-only. It is a camera instrument; a light theme
+ * would fight the video it exists to display.
+ */
+
+:root {
+  /* --- neutrals --- */
+  --n-100: #141413;   /* page surface */
+  --n-150: #1a1a19;   /* raised surface */
+  --n-200: #212120;   /* hover surface */
+  --n-300: #2a2a28;   /* active surface / inset */
+  --n-400: #34342f;   /* default border */
+  --n-500: #43433c;   /* hover border */
+  --n-600: #55554d;   /* active border */
+  --n-700: #6e6e64;   /* disabled ink */
+  --n-800: #8c8c81;   /* tertiary ink */
+  --n-900: #a9a99e;   /* secondary ink */
+  --n-1000: #f3f2ed;  /* primary ink */
+
+  /* --- amber: the signal --- */
+  --a-100: #fde9c8;
+  --a-200: #f9cd8a;
+  --a-300: #f5bb64;   /* live ink: text and marks on dark */
+  --a-400: #e39724;   /* single-series chart fill */
+  --a-500: #cf8517;
+  --a-600: #b87413;
+  --a-700: #83520d;
+  --a-800: #563608;
+  --a-900: #33200a;   /* faintest fill still distinguishable from the surface */
+
+  /* --- semantic --- */
+  --bg: var(--n-100);
+  --surface: var(--n-150);
+  --surface-raised: var(--n-200);
+  --border: var(--n-400);
+  --border-strong: var(--n-600);
+  --ink: var(--n-1000);
+  --ink-dim: var(--n-900);
+  --ink-faint: var(--n-800);
+  --accent: var(--a-300);
+  --accent-fill: var(--a-400);
+  --good: #6fbf73;
+  --bad: #e5806b;
+
+  /* --- type --- */
+  --sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* A fluid scale. Tracking tightens as size grows, which is the only way large
+     sans-serif headings stop looking like enlarged body copy. */
+  --t-display: clamp(2.75rem, 1.2rem + 6.4vw, 6rem);
+  --t-h1: clamp(2rem, 1.2rem + 3.2vw, 3.25rem);
+  --t-h2: clamp(1.5rem, 1.1rem + 1.6vw, 2.125rem);
+  --t-h3: 1.125rem;
+  --t-body: 1rem;
+  --t-small: 0.875rem;
+  --t-micro: 0.75rem;
+  --t-nano: 0.6875rem;
+
+  /* --- space & shape --- */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 72px; --sp-9: 112px;
+  --r-sm: 6px; --r-md: 10px; --r-lg: 16px; --r-xl: 24px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.7);
+
+  --measure: 66ch;
+  --page: 1180px;
+}
+
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("./fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("./fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2-variations");
+}

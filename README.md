@@ -65,7 +65,13 @@ ml/
   write_evaluation_doc.py docs/EVALUATION.md
   make_browser_fixture.py the fixture the browser tests grade themselves against
   tests/                  feature, model and Python/JavaScript parity tests
-web/                      the deployed site: no build step, no framework, no runtime dependencies
+web/
+  index.html style.css    the deployed site: no build step, no framework, no runtime dependencies
+  tokens.css              the design tokens -- two colour scales, one type scale, nothing else
+  app.js                  camera, inference loop, alphabet reference
+  charts.js               every chart, built from eval/results.json at page load
+  features.js model.js    the browser halves of ml/features.py and the classifier
+scripts/                  build the site, capture the walkthrough, render the social card
 models/                   the trained model, its labels, and the MediaPipe hand landmarker
 eval/                     results.json and the confusion matrix
 ```

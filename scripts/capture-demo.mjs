@@ -92,30 +92,30 @@ const run = async () => {
   });
 
   await page.goto(`${BASE}/index.html`);
-  await page.locator(".chart-cell").first().waitFor({ timeout: 30_000 });
+  await page.locator(".glyphcell").first().waitFor({ timeout: 30_000 });
   await page.evaluate(() => (window.__index = -1));
 
   await shoot(page, "01-landing");
 
   await page.locator("#start").click();
-  await page.locator("#status.ok").waitFor({ timeout: 60_000 });
-  await shoot(page, "02-camera-started", page.locator("#stage"));
+  await page.locator('#status[data-kind="ok"]').waitFor({ timeout: 60_000 });
+  await shoot(page, "02-camera-started", page.locator("#device"));
 
   // Spell the word one letter at a time, releasing between letters so the same
   // letter twice in a row would still commit.
   for (let i = 0; i < WORD.length; i++) {
     await page.evaluate((n) => (window.__index = n), i);
     await page.locator("#spelled").filter({ hasText: WORD.slice(0, i + 1).join("") }).waitFor({ timeout: 30_000 });
-    await shoot(page, `03-letter-${i + 1}-${WORD[i]}`, page.locator("#stage"));
+    await shoot(page, `03-letter-${i + 1}-${WORD[i]}`, page.locator("#device"));
     await page.evaluate(() => (window.__index = -1));
     await page.waitForTimeout(500);
   }
 
   await page.evaluate(() => window.scrollTo(0, 0));
-  await shoot(page, "04-numbers", page.locator("main > section.panel").nth(0));
-  await shoot(page, "05-chart", page.locator("main > section.panel").nth(1));
-  await shoot(page, "06-how", page.locator("main > section.panel").nth(2));
-  await shoot(page, "07-failures", page.locator("main > section.panel").nth(3));
+  await shoot(page, "04-verdict", page.locator("#verdict"));
+  await shoot(page, "05-errors", page.locator("#perletter").locator("xpath=ancestor::div[contains(@class,\'card\')]"));
+  await shoot(page, "06-matrix", page.locator("#matrix").locator("xpath=ancestor::div[contains(@class,\'card\')]"));
+  await shoot(page, "07-alphabet", page.locator("#alphabet .alphabet-layout"));
 
   // A phone-sized pass, because half the people who open a link open it there.
   const phone = await browser.newContext({
@@ -125,7 +125,7 @@ const run = async () => {
   });
   const mobile = await phone.newPage();
   await mobile.goto(`${BASE}/index.html`);
-  await mobile.locator(".chart-cell").first().waitFor({ timeout: 30_000 });
+  await mobile.locator(".glyphcell").first().waitFor({ timeout: 30_000 });
   await shoot(mobile, "08-mobile", undefined);
 
   await browser.close();

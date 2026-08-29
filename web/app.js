@@ -2,32 +2,53 @@ import { FilesetResolver, HandLandmarker } from "./vendor/mediapipe/vision_bundl
 import { normalize } from "./features.js";
 import { Classifier } from "./model.js";
 import { drawSkeleton, layoutPose } from "./hand.js";
+import { renderComparison, renderFolds, renderPerLetter, renderMatrix, renderConfusionList } from "./charts.js";
 
+const $ = (id) => document.getElementById(id);
 const els = {
-  video: document.getElementById("video"),
-  overlay: document.getElementById("overlay"),
-  start: document.getElementById("start"),
-  status: document.getElementById("status"),
-  letter: document.getElementById("letter"),
-  confidence: document.getElementById("confidence"),
-  ranked: document.getElementById("ranked"),
-  spelled: document.getElementById("spelled"),
-  clear: document.getElementById("clear"),
-  backspace: document.getElementById("backspace"),
-  chart: document.getElementById("chart"),
-  numbers: document.getElementById("numbers"),
-  fps: document.getElementById("fps"),
+  device: $("device"),
+  video: $("video"),
+  overlay: $("overlay"),
+  start: $("start"),
+  status: $("status"),
+  statusText: $("status-text"),
+  letter: $("letter"),
+  ring: $("hold-ring"),
+  holdHint: $("hold-hint"),
+  ranked: $("ranked"),
+  spelled: $("spelled"),
+  clear: $("clear"),
+  backspace: $("backspace"),
+  fps: $("fps"),
+  topbar: $("topbar"),
+  grid: $("glyphgrid"),
+  detailCanvas: $("detail-canvas"),
+  detailLetter: $("detail-letter"),
+  detailStat: $("detail-stat"),
+  detailNote: $("detail-note"),
+  verdictValue: $("verdict-value"),
+  verdictSub: $("verdict-sub"),
+  comparison: $("comparison"),
+  folds: $("folds"),
+  perletter: $("perletter"),
+  matrix: $("matrix"),
+  pairs: $("pairs"),
+  readoutHint: $("readout-hint"),
 };
 
-// A letter is only committed to the spelled word once the same prediction has
-// held for this many consecutive frames above the confidence floor. Without it
-// the buffer fills with whatever the hand passed through on its way to the sign.
+// A letter is committed once the same prediction has held for this many frames
+// above the confidence floor. Without it the buffer fills with whatever the hand
+// passed through on its way to the sign.
 const HOLD_FRAMES = 12;
 const CONFIDENCE_FLOOR = 0.7;
-const RELEASE_FRAMES = 8; // frames of a different/absent sign before the same letter can repeat
+const RELEASE_FRAMES = 8;
+
+const RING_CIRCUMFERENCE = 2 * Math.PI * 76;
 
 let landmarker = null;
 let classifier = null;
+let results = null;
+let stream = null;
 let running = false;
 let lastVideoTime = -1;
 let stableLabel = null;
@@ -36,86 +57,150 @@ let lastCommitted = null;
 let awayCount = 0;
 let frameTimes = [];
 
-function setStatus(text, kind = "") {
-  els.status.textContent = text;
-  els.status.className = `status ${kind}`;
+/* ------------------------------------------------------------ chrome */
+
+function setStatus(text, kind = "idle") {
+  els.statusText.textContent = text;
+  els.status.dataset.kind = kind;
 }
 
-async function loadModel() {
-  classifier = await Classifier.load("./models/signspeak.weights.json");
-  renderChart();
+function setHold(progress) {
+  els.ring.style.setProperty("--circ", RING_CIRCUMFERENCE);
+  els.ring.style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - Math.min(progress, 1));
 }
 
-async function loadNumbers() {
-  // The figures on the page are read from the evaluation output rather than
-  // typed into the HTML, so the page cannot claim an accuracy the repository
-  // did not measure.
-  try {
-    const r = await fetch("./models/results.json");
-    if (!r.ok) throw new Error(String(r.status));
-    const results = await r.json();
-    const si = results.signer_independent;
-    const rs = results.random_split;
-    const d = results.dataset;
-    els.numbers.innerHTML = `
-      <div class="figure">
-        <div class="figure-value">${(si.mean_accuracy * 100).toFixed(1)}%</div>
-        <div class="figure-label">accuracy on a signer the model never saw</div>
-        <div class="figure-note">Leave-one-signer-out over ${d.signers.length} signers: train on four people,
-        test on the fifth, five times. Every one of the ${si.n_test_total.toLocaleString()} samples is held out
-        exactly once. Per-fold range ${(si.min_accuracy * 100).toFixed(1)}%–${(si.max_accuracy * 100).toFixed(1)}%,
-        which is how much it depends on <em>which</em> person.</div>
-      </div>
-      <div class="figure muted">
-        <div class="figure-value">${(rs.accuracy * 100).toFixed(1)}%</div>
-        <div class="figure-label">accuracy if you split the data randomly</div>
-        <div class="figure-note">The same model, measured dishonestly. Neighbouring frames of one recording
-        land on both sides of a random split, so the model is scored partly on images it trained on.
-        The ${(results.leak_gap * 100).toFixed(1)}-point gap is what that mistake is worth.</div>
-      </div>
-      <div class="figure muted">
-        <div class="figure-value">${d.n_classes}</div>
-        <div class="figure-label">letters</div>
-        <div class="figure-note">The static ASL alphabet. J and Z are absent everywhere in this work:
-        both are defined by movement, and a single frame cannot carry them.
-        MediaPipe found a hand in ${(d.detection_rate * 100).toFixed(1)}% of the
-        ${d.images_in_dataset.toLocaleString()} dataset images; the model is measured on those.</div>
-      </div>`;
-  } catch (err) {
-    els.numbers.innerHTML = `<p class="error">The measured figures could not be loaded (${err.message}).
-      Rather than show a number that might be wrong, this section is showing nothing.</p>`;
+const observer = new IntersectionObserver(
+  ([entry]) => { els.topbar.dataset.stuck = String(!entry.isIntersecting); },
+  { rootMargin: "-1px 0px 0px 0px", threshold: 1 }
+);
+const sentinel = document.createElement("div");
+document.body.prepend(sentinel);
+observer.observe(sentinel);
+
+/* ------------------------------------------------------------ evidence */
+
+async function loadResults() {
+  const res = await fetch("./models/results.json");
+  if (!res.ok) throw new Error(`results.json returned ${res.status}`);
+  results = await res.json();
+
+  const si = results.signer_independent;
+  const d = results.dataset;
+  els.verdictValue.textContent = `${(si.mean_accuracy * 100).toFixed(1)}%`;
+  els.verdictSub.textContent =
+    `${d.n_classes} letters. Every one of ${si.n_test_total.toLocaleString()} landmark samples was held out ` +
+    `exactly once, and no frame of the test person appeared in training. MediaPipe found a hand in ` +
+    `${(d.detection_rate * 100).toFixed(1)}% of the ${d.images_in_dataset.toLocaleString()} dataset images; ` +
+    `the model is measured on those.`;
+
+  renderComparison(els.comparison, results);
+  renderFolds(els.folds, results);
+  renderPerLetter(els.perletter, results, { onSelect: selectLetter });
+  renderMatrix(els.matrix, results);
+  renderConfusionList(els.pairs, results);
+}
+
+function evidenceFailed(message) {
+  els.verdictValue.textContent = "—";
+  els.verdictSub.innerHTML =
+    `<span class="error-note">The measured figures could not be loaded (${message}). ` +
+    `Rather than show a number that might be wrong, this section is showing none.</span>`;
+  for (const node of [els.comparison, els.folds, els.perletter, els.matrix, els.pairs]) node.innerHTML = "";
+}
+
+/* ------------------------------------------------------------ alphabet */
+
+function accuracyFor(letter) {
+  const pc = results?.signer_independent?.per_class_accuracy;
+  const v = pc?.[letter.toLowerCase()];
+  return typeof v === "number" ? v : null;
+}
+
+function topConfusionFor(letter) {
+  const list = results?.signer_independent?.top_confusions || [];
+  return list.find((c) => c.true.toUpperCase() === letter) || null;
+}
+
+function drawPose(canvas, pose, opts) {
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!pose) return;
+  drawSkeleton(ctx, layoutPose(pose, canvas.width, canvas.height), opts);
+}
+
+function selectLetter(letter) {
+  const pose = classifier?.prototypes?.[letter];
+  drawPose(els.detailCanvas, pose, {
+    lineWidth: 5,
+    dotRadius: 6,
+    color: "#f5bb64",
+    jointColor: "#f3f2ed",
+  });
+  els.detailLetter.textContent = letter;
+
+  const acc = accuracyFor(letter);
+  els.detailStat.textContent = acc === null ? "" : `${(acc * 100).toFixed(1)}% correct on a new signer`;
+
+  const confusion = topConfusionFor(letter);
+  els.detailNote.textContent = confusion
+    ? `Most often mistaken for ${confusion.predicted.toUpperCase()}, on ${(confusion.rate * 100).toFixed(1)}% of all ${letter}.`
+    : "Not among the eight most common confusions — whatever it gets wrong, it spreads thinly.";
+
+  for (const cell of els.grid.children) {
+    cell.setAttribute("aria-selected", String(cell.dataset.letter === letter));
   }
 }
 
-function renderChart() {
-  const protos = classifier.prototypes;
-  els.chart.innerHTML = "";
+function renderAlphabet() {
+  els.grid.innerHTML = "";
   for (const label of classifier.labels) {
-    const pose = protos[label];
+    const acc = accuracyFor(label);
     const cell = document.createElement("figure");
-    cell.className = "chart-cell";
+    cell.className = "glyphcell";
+    cell.dataset.letter = label;
+    cell.setAttribute("role", "option");
+    cell.setAttribute("tabindex", "0");
+    cell.setAttribute("aria-selected", "false");
+    // The bar under each cell encodes that letter's measured accuracy, so the
+    // reference grid is also a chart.
+    if (acc !== null) {
+      const t = Math.max(0, Math.min(1, (acc - 0.65) / 0.35));
+      cell.style.setProperty("--acc", `color-mix(in srgb, #f5bb64 ${(15 + t * 85).toFixed(0)}%, #34342f)`);
+    }
+
     const canvas = document.createElement("canvas");
-    canvas.width = 150;
-    canvas.height = 150;
+    canvas.width = 170;
+    canvas.height = 170;
     const caption = document.createElement("figcaption");
-    caption.textContent = label;
+    caption.append(document.createTextNode(label));
+    const stat = document.createElement("span");
+    stat.textContent = acc === null ? "" : `${(acc * 100).toFixed(0)}%`;
+    caption.append(stat);
     cell.append(canvas, caption);
-    els.chart.append(cell);
-    if (!pose) continue;
-    const ctx = canvas.getContext("2d");
-    drawSkeleton(ctx, layoutPose(pose, canvas.width, canvas.height), {
+    els.grid.append(cell);
+
+    drawPose(canvas, classifier.prototypes[label], {
       lineWidth: 3,
-      dotRadius: 3,
-      color: "#64748b",
-      jointColor: "#cbd5f5",
+      dotRadius: 3.2,
+      color: "#8c8c81",
+      jointColor: "#d6d5cd",
+    });
+
+    const pick = () => selectLetter(label);
+    cell.addEventListener("click", pick);
+    cell.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
     });
   }
+  selectLetter(classifier.labels[0]);
 }
+
+/* ------------------------------------------------------------ camera */
 
 async function start() {
   els.start.disabled = true;
   try {
-    setStatus("Loading the hand tracker…");
+    setStatus("Loading hand tracker", "busy");
     const fileset = await FilesetResolver.forVisionTasks("./vendor/mediapipe/wasm");
     landmarker = await HandLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: "./models/hand_landmarker.task", delegate: "GPU" },
@@ -126,8 +211,8 @@ async function start() {
       minTrackingConfidence: 0.5,
     });
 
-    setStatus("Asking for the camera…");
-    const stream = await navigator.mediaDevices.getUserMedia({
+    setStatus("Requesting camera", "busy");
+    stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
     });
     els.video.srcObject = stream;
@@ -136,17 +221,32 @@ async function start() {
     els.overlay.width = els.video.videoWidth || 640;
     els.overlay.height = els.video.videoHeight || 480;
     running = true;
-    setStatus("Running on your device. Nothing is uploaded.", "ok");
-    document.getElementById("stage").classList.add("live");
+    els.device.dataset.live = "true";
+    els.holdHint.textContent = "hold ~0.5s";
+    setStatus("Live · nothing uploaded", "ok");
     requestAnimationFrame(loop);
   } catch (err) {
     els.start.disabled = false;
-    const message =
+    setStatus(
       err && err.name === "NotAllowedError"
-        ? "The camera permission was refused, so there is nothing to read. Allow it and press start again."
-        : `Could not start: ${err.message}`;
-    setStatus(message, "error");
+        ? "Camera permission refused"
+        : `Could not start: ${err.message}`,
+      "error"
+    );
   }
+}
+
+function stop() {
+  running = false;
+  if (stream) for (const track of stream.getTracks()) track.stop();
+  stream = null;
+  els.video.srcObject = null;
+  els.device.dataset.live = "false";
+  els.start.disabled = false;
+  els.holdHint.textContent = "";
+  setHold(0);
+  showNoHand();
+  setStatus("Camera stopped", "idle");
 }
 
 function commit(label) {
@@ -157,26 +257,30 @@ function commit(label) {
 function showPrediction(ranked) {
   const top = ranked[0];
   els.letter.textContent = top.label;
-  els.letter.classList.remove("idle");
-  els.letter.classList.toggle("committing", stableCount >= HOLD_FRAMES / 2);
-  els.confidence.style.setProperty("--pct", `${(top.confidence * 100).toFixed(1)}%`);
-  els.confidence.dataset.value = `${(top.confidence * 100).toFixed(0)}%`;
+  els.letter.dataset.idle = "false";
+  els.letter.dataset.committed = String(top.label === lastCommitted);
   els.ranked.innerHTML = ranked
     .slice(0, 3)
     .map(
       (r) =>
-        `<li><span>${r.label}</span><span class="bar" style="--w:${(r.confidence * 100).toFixed(1)}%"></span><span class="pct">${(r.confidence * 100).toFixed(0)}%</span></li>`
+        `<li><b>${r.label}</b><span class="track"><i style="--w:${(r.confidence * 100).toFixed(1)}%"></i></span><span class="pct">${(r.confidence * 100).toFixed(0)}%</span></li>`
     )
     .join("");
 }
 
 function showNoHand() {
   els.letter.textContent = "–";
-  els.letter.classList.remove("committing");
-  els.letter.classList.add("idle");
-  els.confidence.style.setProperty("--pct", "0%");
-  els.confidence.dataset.value = "";
-  els.ranked.innerHTML = "";
+  els.letter.dataset.idle = "true";
+  els.letter.dataset.committed = "false";
+  placeholderRanked();
+}
+
+// Three inert rows, so the panel has its finished shape before the camera
+// starts instead of being a tall empty box that fills in later.
+function placeholderRanked() {
+  els.ranked.innerHTML = Array.from({ length: 3 })
+    .map(() => `<li data-placeholder="true"><b>–</b><span class="track"><i style="--w:0%"></i></span><span class="pct">—</span></li>`)
+    .join("");
 }
 
 function loop() {
@@ -193,13 +297,13 @@ function loop() {
       const handedness = result.handedness?.[0]?.[0]?.categoryName || "Right";
       drawSkeleton(
         ctx,
-        lm.map((p) => [p.x * els.overlay.width, p.y * els.overlay.height])
+        lm.map((p) => [p.x * els.overlay.width, p.y * els.overlay.height]),
+        { lineWidth: 3, dotRadius: 4.5, color: "#f5bb64", jointColor: "#f3f2ed" }
       );
 
       const ranked = classifier.predict(normalize(lm, handedness));
-      showPrediction(ranked);
-
       const top = ranked[0];
+
       if (top.confidence >= CONFIDENCE_FLOOR && top.label === stableLabel) {
         stableCount += 1;
       } else {
@@ -207,14 +311,18 @@ function loop() {
         stableCount = stableLabel ? 1 : 0;
       }
       awayCount = 0;
+
       if (stableLabel && stableCount === HOLD_FRAMES && stableLabel !== lastCommitted) {
         commit(stableLabel);
         lastCommitted = stableLabel;
       }
+      showPrediction(ranked);
+      setHold(stableLabel === lastCommitted ? 1 : stableCount / HOLD_FRAMES);
     } else {
       showNoHand();
       stableLabel = null;
       stableCount = 0;
+      setHold(0);
       awayCount += 1;
       if (awayCount >= RELEASE_FRAMES) lastCommitted = null;
     }
@@ -223,29 +331,61 @@ function loop() {
     while (frameTimes.length > 30) frameTimes.shift();
     if (frameTimes.length > 5) {
       const fps = (frameTimes.length - 1) / ((frameTimes.at(-1) - frameTimes[0]) / 1000);
-      els.fps.textContent = `${fps.toFixed(0)} fps`;
+      els.fps.innerHTML = `FPS <b>${fps.toFixed(0)}</b>`;
     }
   }
   requestAnimationFrame(loop);
 }
 
+/* ------------------------------------------------------------ wiring */
+
 els.start.addEventListener("click", start);
-els.clear.addEventListener("click", () => {
-  els.spelled.textContent = "";
-  lastCommitted = null;
-});
+els.clear.addEventListener("click", () => { els.spelled.textContent = ""; lastCommitted = null; });
 els.backspace.addEventListener("click", () => {
   els.spelled.textContent = els.spelled.textContent.slice(0, -1);
   lastCommitted = null;
 });
 
+document.addEventListener("keydown", (e) => {
+  const typing = ["INPUT", "TEXTAREA"].includes(e.target.tagName);
+  if (typing || e.metaKey || e.ctrlKey) return;
+  if (e.code === "Space" && e.target.tagName !== "BUTTON") {
+    e.preventDefault();
+    running ? stop() : (els.start.disabled ? null : start());
+  }
+  if (e.key === "Backspace" && running) {
+    e.preventDefault();
+    els.spelled.textContent = els.spelled.textContent.slice(0, -1);
+    lastCommitted = null;
+  }
+});
+
+placeholderRanked();
+setHold(0);
+
 if (!navigator.mediaDevices?.getUserMedia) {
-  setStatus("This browser will not give a page camera access, so the demo cannot run here.", "error");
+  setStatus("This browser will not grant camera access", "error");
   els.start.disabled = true;
 }
 
-loadNumbers();
-loadModel().catch((err) => {
-  setStatus(`The classifier failed to load: ${err.message}`, "error");
-  els.start.disabled = true;
+// The evidence and the demo load independently: a failure in one must not take
+// the other down, and neither may silently substitute a placeholder. The
+// alphabet grid needs both -- the poses from the model, the per-letter
+// accuracies from the evidence -- so it waits on the one shared promise rather
+// than fetching results.json a second time.
+const resultsReady = loadResults().catch((err) => {
+  evidenceFailed(err.message);
+  return null;
 });
+
+Classifier.load("./models/signspeak.weights.json")
+  .then(async (loaded) => {
+    classifier = loaded;
+    await resultsReady;
+    renderAlphabet();
+  })
+  .catch((err) => {
+    setStatus(`Classifier failed to load: ${err.message}`, "error");
+    els.start.disabled = true;
+    els.grid.innerHTML = `<p class="error-note">The reference poses could not be loaded (${err.message}).</p>`;
+  });
