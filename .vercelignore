@@ -1,0 +1,9 @@
+data/
+.venv/
+node_modules/
+test-results/
+playwright-report/
+tests/fixtures/
+docs/frames/
+__pycache__/
+*.pyc

@@ -75,7 +75,11 @@ const run = async () => {
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(OUT, { recursive: true });
 
-  const browser = await chromium.launch({ args: ["--use-fake-ui-for-media-stream"] });
+  // HOST_RESOLVER lets this run against the deployed site from a network whose
+  // DNS blocks *.vercel.app, without touching /etc/hosts.
+  const args = ["--use-fake-ui-for-media-stream"];
+  if (process.env.HOST_RESOLVER) args.push(`--host-resolver-rules=${process.env.HOST_RESOLVER}`);
+  const browser = await chromium.launch({ args });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 2,
