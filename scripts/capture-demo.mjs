@@ -46,7 +46,7 @@ const STUB = ({ frames, padRatio }) => {
       if (img) {
         const pad = Math.round(Math.max(img.width, img.height) * padRatio);
         const side = Math.max(img.width, img.height) + 2 * pad;
-        const scale = Math.min(c.width / side, c.height / side) * 1.6;
+        const scale = Math.min(c.width / side, c.height / side) * 2.4;
         ctx.drawImage(
           img,
           (c.width - img.width * scale) / 2,
@@ -99,7 +99,19 @@ const run = async () => {
 
   await page.locator("#start").click();
   await page.locator('#status[data-kind="ok"]').waitFor({ timeout: 60_000 });
+
+  // Show a hand for this frame. Capturing the instant the camera goes live gives
+  // an empty black viewport, which in a walkthrough reads as "it is broken"
+  // rather than "nobody is signing yet".
+  await page.evaluate(() => (window.__index = 0));
+  await page.locator("#letter").filter({ hasNotText: "–" }).waitFor({ timeout: 30_000 });
   await shoot(page, "02-camera-started", page.locator("#device"));
+
+  // Then reset, so the word below starts from an empty buffer whether or not
+  // that first sign was held long enough to commit.
+  await page.evaluate(() => (window.__index = -1));
+  await page.locator("#clear").click();
+  await page.waitForTimeout(800);
 
   // Spell the word one letter at a time, releasing between letters so the same
   // letter twice in a row would still commit.

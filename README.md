@@ -104,6 +104,12 @@ tar -xjf data/fingerspelling5.tar.bz2 -C data
 the shipped model is trained by the same code that produced the measurement.
 Neither reads the test set — no early stopping, no hyperparameter search.
 
+This is reproducible in the strict sense, not the hopeful one: an independent
+full re-run of `ml/evaluate.py` — six model trainings, about ten minutes —
+reproduces the committed `eval/results.json` **byte for byte, same SHA-256**,
+every digit of the confusion matrix included. That was verified by running it,
+not inferred from the presence of a seed.
+
 ## Running the site
 
 ```bash

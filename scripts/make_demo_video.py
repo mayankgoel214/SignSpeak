@@ -55,9 +55,10 @@ SCRIPT = [
      "No account, no upload, no GPU behind it. The classifier is 52,000 parameters\n"
      "and it runs on the visitor's own device.", 5.0),
     ("02-camera-started", "Camera on",
-     "Everything past this point is the deployed page at signspeak-asl.vercel.app.\n"
-     "The hand in the frame is a recorded dataset image played in as a webcam —\n"
-     "nobody here can sign — but the tracking, the model and the readout are real.", 6.5),
+     "Everything past this point is the real page, driven through a browser — not a\n"
+     "mockup. The hand in the frame is a recorded dataset image played in as a\n"
+     "webcam, because nobody here can sign; the tracking, the model and every\n"
+     "number on the readout are real.", 7.0),
     ("03-letter-1-S", "S",
      "MediaPipe returns 21 landmarks. They are centred on the wrist, rotated upright\n"
      "and scaled, so what reaches the model is shape alone.", 4.5),

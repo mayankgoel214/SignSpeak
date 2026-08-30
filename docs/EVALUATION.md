@@ -37,6 +37,9 @@ the page.
 - **Model**: two hidden layers, trained for 60 epochs at a fixed seed (20260829).
   No early stopping and no hyperparameter search, so nothing in the training procedure ever
   reads the test set.
+- **Determinism**: re-running `ml/evaluate.py` from the cached landmarks reproduces
+  `eval/results.json` byte for byte — same SHA-256, every digit of the confusion matrix
+  included. Verified by an independent full re-run, not asserted from the presence of a seed.
 
 ### Per-signer folds
 
