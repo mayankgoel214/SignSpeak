@@ -111,3 +111,50 @@ test.describe("loading the tracker", () => {
     }
   });
 });
+
+test.describe("stopping and starting again", () => {
+  test.skip(({ browserName }) => browserName === "webkit", WEBKIT_CANNOT_FAKE_A_CAMERA);
+  test.setTimeout(180_000);
+
+  test("survives three cycles, reusing the tracker and releasing the camera each time", async ({ page }) => {
+    test.skip(!fixture, "run: python ml/make_browser_fixture.py");
+
+    // Someone will stop the camera and start it again. The tracker is cached
+    // across cycles and MediaPipe's video mode wants strictly increasing
+    // timestamps, so this is exactly where a restart quietly stops working.
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+
+    const modelRequests = [];
+    page.on("request", (r) => {
+      if (r.url().includes("hand_landmarker.task")) modelRequests.push(r.url());
+    });
+
+    const target = fixture.cases.find((c) => c.letter === "L") || fixture.cases[0];
+    await installCamera(page, { frames: [target.png_base64], padRatio: fixture.pad_ratio });
+    await page.goto("/index.html");
+    await expectCameraStubbed(page);
+
+    for (let cycle = 1; cycle <= 3; cycle++) {
+      await page.locator("#start").click();
+      await expect(page.locator("#status")).toHaveAttribute("data-kind", "ok", { timeout: 90_000 });
+      // It must actually be reading the hand each time, not merely look live.
+      await expect(page.locator("#letter")).toHaveText(target.letter, { timeout: 40_000 });
+
+      const tracks = await page.evaluate(() =>
+        (window.__stubbedTracks || []).map((t) => t.readyState)
+      );
+      expect(tracks.every((t) => t === "live"), `cycle ${cycle}: camera not live`).toBe(true);
+
+      await page.locator("body").click({ position: { x: 5, y: 5 } });
+      await page.keyboard.press("Space");
+      await expect(page.locator("#device")).toHaveAttribute("data-live", "false");
+      expect(await page.evaluate(() => document.getElementById("video").srcObject)).toBeNull();
+    }
+
+    // The 8.7 MB is fetched once for the whole session, not once per start.
+    expect(modelRequests).toHaveLength(1);
+    expect(errors).toEqual([]);
+  });
+});
