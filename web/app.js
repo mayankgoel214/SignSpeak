@@ -156,9 +156,12 @@ async function loadCalibration() {
 
 function evidenceFailed(message) {
   els.verdictValue.textContent = "—";
-  els.verdictSub.innerHTML =
-    `<span class="error-note">The measured figures could not be loaded (${message}). ` +
-    `Rather than show a number that might be wrong, this section is showing none.</span>`;
+  const note = document.createElement("span");
+  note.className = "error-note";
+  note.textContent =
+    `The measured figures could not be loaded (${message}). ` +
+    "Rather than show a number that might be wrong, this section is showing none.";
+  els.verdictSub.replaceChildren(note);
   for (const node of [els.comparison, els.folds, els.perletter, els.matrix, els.pairs]) node.innerHTML = "";
 }
 
@@ -350,7 +353,9 @@ async function createLandmarker(fileset, modelBuffer) {
 }
 
 function setDelegate(kind) {
-  els.delegate.innerHTML = `INFERENCE <b>on-device · ${kind}</b>`;
+  const value = document.createElement("b");
+  value.textContent = `on-device · ${kind}`;
+  els.delegate.replaceChildren(document.createTextNode("INFERENCE "), value);
   els.delegate.dataset.delegate = kind;
 }
 
@@ -488,13 +493,33 @@ function showPrediction(ranked) {
   els.letter.textContent = top.label;
   els.letter.dataset.idle = "false";
   els.letter.dataset.committed = String(top.label === lastCommitted);
-  els.ranked.innerHTML = ranked
-    .slice(0, 3)
-    .map(
-      (r) =>
-        `<li><b>${r.label}</b><span class="track"><i style="--w:${(r.confidence * 100).toFixed(1)}%"></i></span><span class="pct">${(r.confidence * 100).toFixed(0)}%</span></li>`
-    )
-    .join("");
+  // Built as DOM rather than an innerHTML string: the width is a custom property
+  // on an element, and an inline style attribute would force the page's content
+  // security policy to allow inline styles everywhere.
+  els.ranked.replaceChildren(
+    ...ranked.slice(0, 3).map((r) => rankedRow(r.label, r.confidence, false))
+  );
+}
+
+function rankedRow(label, confidence, placeholder) {
+  const li = document.createElement("li");
+  if (placeholder) li.dataset.placeholder = "true";
+
+  const name = document.createElement("b");
+  name.textContent = label;
+
+  const track = document.createElement("span");
+  track.className = "track";
+  const fill = document.createElement("i");
+  fill.style.setProperty("--w", `${(confidence * 100).toFixed(1)}%`);
+  track.append(fill);
+
+  const pct = document.createElement("span");
+  pct.className = "pct";
+  pct.textContent = placeholder ? "—" : `${(confidence * 100).toFixed(0)}%`;
+
+  li.append(name, track, pct);
+  return li;
 }
 
 function setNoHandHint(show) {
@@ -511,9 +536,9 @@ function showNoHand() {
 // Three inert rows, so the panel has its finished shape before the camera
 // starts instead of being a tall empty box that fills in later.
 function placeholderRanked() {
-  els.ranked.innerHTML = Array.from({ length: 3 })
-    .map(() => `<li data-placeholder="true"><b>–</b><span class="track"><i style="--w:0%"></i></span><span class="pct">—</span></li>`)
-    .join("");
+  els.ranked.replaceChildren(
+    ...Array.from({ length: 3 }, () => rankedRow("–", 0, true))
+  );
 }
 
 function loop() {
@@ -567,7 +592,9 @@ function loop() {
     while (frameTimes.length > 30) frameTimes.shift();
     if (frameTimes.length > 5) {
       const fps = (frameTimes.length - 1) / ((frameTimes.at(-1) - frameTimes[0]) / 1000);
-      els.fps.innerHTML = `FPS <b>${fps.toFixed(0)}</b>`;
+      const value = document.createElement("b");
+      value.textContent = fps.toFixed(0);
+      els.fps.replaceChildren(document.createTextNode("FPS "), value);
     }
   }
   requestAnimationFrame(loop);
@@ -634,5 +661,10 @@ Classifier.load("./models/signspeak.weights.json")
   .catch((err) => {
     setStatus(`Classifier failed to load: ${err.message}`, "error");
     els.start.disabled = true;
-    els.grid.innerHTML = `<p class="error-note">The reference poses could not be loaded (${err.message}).</p>`;
+    const note = document.createElement("p");
+    note.className = "error-note";
+    // textContent, not innerHTML: an error message is not markup, and building
+    // HTML out of one is how a page ends up rendering whatever an error says.
+    note.textContent = `The reference poses could not be loaded (${err.message}).`;
+    els.grid.replaceChildren(note);
   });

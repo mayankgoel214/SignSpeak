@@ -53,7 +53,10 @@ export default defineConfig({
   webServer: process.env.BASE_URL
     ? undefined
     : {
-        command: "python3 -m http.server 8099 --directory web",
+        // Not a plain static server: this one sends the production security
+        // headers, so the content security policy is enforced in every local and
+        // CI run instead of only on the deployed site.
+        command: "node scripts/serve.mjs 8099",
         url: "http://127.0.0.1:8099/index.html",
         reuseExistingServer: !process.env.CI,
         timeout: 30_000,

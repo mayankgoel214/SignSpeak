@@ -217,6 +217,31 @@ download, the model reports true progress against its real uncompressed size —
 past 100%, so `scripts/build-web.sh` stamps the real sizes into `assets.json` and
 a test checks they match the files actually served.
 
+## Security posture
+
+There is no backend, no account and no user input, so the attack surface is what
+the page itself loads. That is worth locking down rather than leaving open
+because it happens to be small:
+
+- A strict **Content-Security-Policy**: `default-src 'self'`, no inline scripts,
+  no inline styles, `object-src`, `base-uri`, `form-action` and `frame-ancestors`
+  all `'none'`. WebAssembly is allowed through `'wasm-unsafe-eval'` specifically,
+  rather than a blanket `'unsafe-eval'` on a page with no reason to evaluate
+  strings. Enforcing it meant removing every inline style attribute and every
+  place markup was built by string concatenation — including one that
+  interpolated an error message into HTML.
+- **Permissions-Policy** grants `camera=(self)` and denies microphone,
+  geolocation, payment and USB outright. The camera is the product; nothing else
+  should be reachable.
+- `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
+  `Cross-Origin-Opener-Policy: same-origin`.
+
+`scripts/serve.mjs` replays those headers locally, so the policy is enforced in
+development and in CI rather than only on the deployed site — a policy that
+applies only in production is a policy nobody tests, and the first sign it is
+wrong is a blank page for a visitor. `tests/headers.spec.js` asserts both that
+the headers are present and that the page runs clean under them.
+
 ## Honest limits
 
 - Five signers is a small population, and the per-fold spread is several points.

@@ -218,7 +218,8 @@ export function renderMatrix(root, results) {
   const tbody = el("tbody");
   const readout = el("p", "matrix-readout");
   const rest = () => {
-    readout.innerHTML = "Hover a cell to read it. The brightest off-diagonal cells are the model's real weaknesses.";
+    readout.textContent =
+      "Hover a cell to read it. The brightest off-diagonal cells are the model's real weaknesses.";
   };
 
   classes.forEach((trueLetter, i) => {
@@ -236,15 +237,27 @@ export function renderMatrix(root, results) {
       } else {
         td.style.setProperty("--cell", errorColor(share));
       }
-      const text =
+      // Built as nodes rather than an HTML string. Nothing here is user input,
+      // but assembling markup by concatenation is the habit that eventually
+      // renders something that was never meant to be markup.
+      const describe = () => {
+        const parts =
+          i === j
+            ? [["b", trueLetter], [null, " read correctly "], ["b", pct(share, 1)],
+               [null, ` of the time (${count.toLocaleString()} of ${total.toLocaleString()})`]]
+            : [["b", trueLetter], [null, " read as "], ["b", predLetter],
+               [null, ` — ${pct(share, 1)} of all ${trueLetter} (${count.toLocaleString()} of ${total.toLocaleString()})`]];
+        return parts.map(([tag, text]) => (tag ? el(tag, null, text) : document.createTextNode(text)));
+      };
+      const plain =
         i === j
-          ? `<b>${trueLetter}</b> read correctly <b>${pct(share, 1)}</b> of the time (${count.toLocaleString()} of ${total.toLocaleString()})`
-          : `<b>${trueLetter}</b> read as <b>${predLetter}</b> — ${pct(share, 1)} of all ${trueLetter} (${count.toLocaleString()} of ${total.toLocaleString()})`;
+          ? `${trueLetter} read correctly ${pct(share, 1)} of the time (${count.toLocaleString()} of ${total.toLocaleString()})`
+          : `${trueLetter} read as ${predLetter} — ${pct(share, 1)} of all ${trueLetter} (${count.toLocaleString()} of ${total.toLocaleString()})`;
       // A plain-text title for anything that cannot hover; the styled readout
       // below the matrix is the primary affordance.
-      td.title = text.replace(/<\/?b>/g, "");
-      td.setAttribute("aria-label", td.title);
-      td.addEventListener("mouseenter", () => { readout.innerHTML = text; });
+      td.title = plain;
+      td.setAttribute("aria-label", plain);
+      td.addEventListener("mouseenter", () => { readout.replaceChildren(...describe()); });
       td.addEventListener("mouseleave", rest);
       tr.append(td);
     });

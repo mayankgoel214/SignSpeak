@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "serve": "python3 -m http.server 8099 --directory web",
+    "serve": "node scripts/serve.mjs 8099",
     "test": "playwright test"
   },
   "devDependencies": {
