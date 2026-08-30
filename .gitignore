@@ -13,3 +13,4 @@ test-results/
 docs/frames/
 docs/build/
 .vercel/
+tests/fixtures/browser-cases.json

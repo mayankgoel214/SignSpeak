@@ -137,8 +137,19 @@ conventional suite would not:
   spells exactly one letter. These skip, loudly, without the fixture; regenerate it
   with `python ml/make_browser_fixture.py` after downloading the dataset.
 
-The fixture is not committed because it contains images from a dataset that is not
-mine to redistribute.
+There are two fixtures, and the difference matters. `landmark-cases.json` holds
+240 real hands as landmark coordinates plus the letter the Python model predicts
+from them; it is committed, because coordinates are derived measurements rather
+than the dataset's images, and it keeps `parity.spec.js` running everywhere
+including CI. `browser-cases.json` also holds the source photographs, which drive
+the full MediaPipe-in-Chromium check; it is **not** committed, because those
+images are not mine to redistribute, and the tests that need it skip loudly.
+
+An earlier version of this README claimed the image fixture was not committed
+while it was, from the first commit of the rebuild until it was removed. It is
+untracked now, `ml/tests/test_repository_hygiene.py` fails if it is ever tracked
+again, and the history has not been rewritten — saying so is more honest than a
+tidy log.
 
 ## Honest limits
 

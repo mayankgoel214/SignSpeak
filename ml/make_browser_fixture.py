@@ -7,9 +7,20 @@ copy of the model, and must reach the same letter -- which is the only way to
 catch the failure where the model is excellent in Python and the page ships a
 different answer.
 
-The fixture is not committed: it contains images from a dataset that is not
-mine to redistribute. Regenerate it with this script; the browser tests skip
-themselves, loudly, when it is missing.
+Two files come out of this.
+
+  browser-cases.json   images, landmarks and the model's prediction. It drives
+                       the full browser check -- MediaPipe re-detecting the same
+                       photograph in Chromium -- and is NOT committed, because it
+                       carries images from a dataset that is not mine to
+                       redistribute. The tests that need it skip, loudly, when it
+                       is absent, which is what happens in CI.
+
+  landmark-cases.json  the same cases with the images removed: landmarks in,
+                       expected letter out. It is committed, because landmark
+                       coordinates are derived measurements rather than the
+                       dataset's images, and it keeps the feature and model
+                       parity checks running everywhere including CI.
 
 Usage:  python ml/make_browser_fixture.py [n_per_letter]
 """
@@ -69,10 +80,17 @@ def main():
 
     dest = os.path.join(ROOT, "tests", "fixtures")
     os.makedirs(dest, exist_ok=True)
+
     path = os.path.join(dest, "browser-cases.json")
     with open(path, "w") as f:
         json.dump({"pad_ratio": 0.6, "cases": out}, f)
-    print(f"wrote {path}: {len(out)} cases, {os.path.getsize(path) / 1024:.0f} KB")
+    print(f"wrote {path}: {len(out)} cases, {os.path.getsize(path) / 1024:.0f} KB (not committed)")
+
+    lean = [{k: v for k, v in case.items() if k != "png_base64"} for case in out]
+    path = os.path.join(dest, "landmark-cases.json")
+    with open(path, "w") as f:
+        json.dump({"cases": lean}, f)
+    print(f"wrote {path}: {len(lean)} cases, {os.path.getsize(path) / 1024:.0f} KB (committed)")
 
 
 if __name__ == "__main__":

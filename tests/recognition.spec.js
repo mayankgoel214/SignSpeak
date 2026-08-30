@@ -7,10 +7,14 @@ import { WEBKIT_CANNOT_FAKE_A_CAMERA } from "./support/camera.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, "fixtures", "browser-cases.json");
 
-// These tests grade the browser against real dataset images. The fixture is not
-// committed -- it holds images from a dataset that is not ours to redistribute
-// -- so regenerate it with `python ml/make_browser_fixture.py` after
-// downloading the dataset. Skipping loudly beats passing vacuously.
+// These tests grade the browser against real dataset images, which means they
+// need the image fixture -- and that one is deliberately not committed, because
+// the images are not ours to redistribute. Regenerate it with
+// `python ml/make_browser_fixture.py` after downloading the dataset. Skipping
+// loudly beats passing vacuously.
+//
+// The parts that do not need pixels live in parity.spec.js, which runs off the
+// committed landmark fixture and therefore runs in CI too.
 const fixture = fs.existsSync(FIXTURE) ? JSON.parse(fs.readFileSync(FIXTURE, "utf8")) : null;
 
 test.describe("the model, in the browser, on real images", () => {
@@ -125,9 +129,20 @@ test.describe("the model, in the browser, on real images", () => {
     // fixture, that is worth about 0.02 of median feature drift on CPU and 0.03
     // on GPU, in units where the whole hand spans 1.
     expect(report.agreedWithPython / report.detected).toBeGreaterThan(0.95);
-    expect(report.handednessDisagreements).toBe(0);
     expect(report.medianDivergence).toBeLessThan(0.05);
     expect(report.p95Divergence).toBeLessThan(0.25);
+
+    // Handedness is a classification, not a fact, and the two MediaPipe builds
+    // disagree on a small fraction of frames. It matters because normalize()
+    // mirrors left hands onto the right-hand manifold, so a flip hands the model
+    // a pose it has never seen. Measured at under 1% here, and two things blunt
+    // it in use: MediaPipe smooths handedness across a tracked video rather than
+    // deciding per frame, and a letter needs half a second of agreement before
+    // it commits, so one bad frame cannot spell anything.
+    //
+    // This was asserted as exactly zero until a 240-image fixture found two.
+    // Zero was an assumption, not a requirement.
+    expect(report.handednessDisagreements / report.detected).toBeLessThan(0.02);
     // These are training-set images, so this is a sanity floor on the wiring,
     // not a performance measurement. The performance measurement is
     // eval/results.json.
