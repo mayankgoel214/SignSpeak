@@ -38,9 +38,11 @@ METADATA = os.path.join(MODELS, "metadata.json")
 RESULTS = os.path.join(ROOT, "eval", "results.json")
 
 JS_MODEL = os.path.join(ROOT, "web", "model.js")
+# Through a file rather than argv -- see test_model_parity.py.
 HARNESS = """
+import fs from 'node:fs';
 import { Classifier } from './model.mjs';
-const [weights, inputs] = JSON.parse(process.argv[2]);
+const [weights, inputs] = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const c = new Classifier(weights);
 console.log(JSON.stringify(inputs.map(x => Array.from(c.forward(Float32Array.from(x))))));
 """
@@ -105,8 +107,11 @@ def test_the_browser_runs_the_same_model_as_pytorch(weights, torch_model, probes
         harness = os.path.join(tmp, "harness.mjs")
         with open(harness, "w") as f:
             f.write(HARNESS)
+        payload = os.path.join(tmp, "payload.json")
+        with open(payload, "w") as f:
+            json.dump([weights, probes.tolist()], f)
         out = subprocess.run(
-            ["node", harness, json.dumps([weights, probes.tolist()])],
+            ["node", harness, payload],
             capture_output=True, text=True, check=True, cwd=tmp,
         )
     js = np.array(json.loads(out.stdout), dtype=np.float64)

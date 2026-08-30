@@ -23,9 +23,13 @@ from features import normalize
 
 JS_SOURCE = os.path.join(HERE, "..", "..", "web", "features.js")
 
+# The payload goes through a file, not argv. Linux caps a single argument at
+# 128 KB while macOS allows about 1 MB, so passing JSON on the command line
+# works locally and fails only in CI -- which is exactly what happened.
 HARNESS = """
+import fs from 'node:fs';
 import { normalize } from './features.mjs';
-const cases = JSON.parse(process.argv[2]);
+const cases = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 console.log(JSON.stringify(cases.map(c => Array.from(normalize(c.landmarks, c.handedness)))));
 """
 
@@ -43,8 +47,11 @@ def test_js_and_python_agree():
         harness = os.path.join(tmp, "harness.mjs")
         with open(harness, "w") as f:
             f.write(HARNESS)
+        payload = os.path.join(tmp, "cases.json")
+        with open(payload, "w") as f:
+            json.dump(cases, f)
         out = subprocess.run(
-            ["node", harness, json.dumps(cases)],
+            ["node", harness, payload],
             capture_output=True, text=True, check=True, cwd=tmp,
         )
     js = np.array(json.loads(out.stdout), dtype=np.float32)
