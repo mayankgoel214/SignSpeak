@@ -203,6 +203,75 @@ function renderAlphabet() {
 
 /* ------------------------------------------------------------ camera */
 
+// Starting the camera costs about 8.7 MB: the MediaPipe WebAssembly build and the
+// hand-landmark model. Measured at 5.2 seconds on fast wifi, and minutes on a
+// phone connection -- during which the old code showed one unchanging label, so
+// the honest reading of the page was "it is broken".
+//
+// Two things fix that. The download begins the moment someone shows intent
+// (hovers, focuses or touches the button) rather than when they click it, so the
+// common case is already warm. And the model's download reports real progress
+// against its real uncompressed size, which build-web.sh stamps into
+// assets.json -- Content-Length is the *compressed* length on the wire and would
+// send the counter past 100%.
+const TASK_URL = "./models/hand_landmarker.task";
+
+let trackerPromise = null;
+
+function warmTracker() {
+  if (!trackerPromise) trackerPromise = buildTracker().catch((err) => {
+    // Swallowed here on purpose: this may be a speculative prefetch nobody asked
+    // for. start() retries and reports the failure where it can be seen.
+    trackerPromise = null;
+    throw err;
+  });
+  return trackerPromise;
+}
+
+async function fetchModel(onProgress) {
+  const [res, sizes] = await Promise.all([
+    fetch(TASK_URL),
+    fetch("./models/assets.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+  ]);
+  if (!res.ok) throw new Error(`the hand model failed to load (${res.status})`);
+
+  const expected = sizes["hand_landmarker.task"] || 0;
+  if (!res.body) return new Uint8Array(await res.arrayBuffer());
+
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    onProgress(received, expected);
+  }
+  const buffer = new Uint8Array(received);
+  let at = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, at);
+    at += chunk.length;
+  }
+  return buffer;
+}
+
+async function buildTracker() {
+  setStatus("Loading hand tracker", "busy");
+  const fileset = await FilesetResolver.forVisionTasks("./vendor/mediapipe/wasm");
+
+  const modelBuffer = await fetchModel((received, expected) => {
+    const mb = (received / 1e6).toFixed(1);
+    setStatus(
+      expected ? `Loading model ${Math.min(100, Math.round((received / expected) * 100))}%` : `Loading model ${mb} MB`,
+      "busy"
+    );
+  });
+
+  return createLandmarker(fileset, modelBuffer);
+}
+
 // The tracker runs on the GPU where there is one. Some machines have no usable
 // WebGL -- an old browser, a headless runner, a user who turned it off -- and on
 // those the GPU delegate throws at construction and the demo would simply not
@@ -210,9 +279,9 @@ function renderAlphabet() {
 //
 // The fallback is announced, not silent: the status strip says which delegate is
 // in use, so a visitor reading 8 fps can see why.
-async function createLandmarker(fileset) {
+async function createLandmarker(fileset, modelBuffer) {
   const options = (delegate) => ({
-    baseOptions: { modelAssetPath: "./models/hand_landmarker.task", delegate },
+    baseOptions: { modelAssetBuffer: modelBuffer, delegate },
     runningMode: "VIDEO",
     numHands: 1,
     minHandDetectionConfidence: 0.5,
@@ -293,9 +362,7 @@ async function start() {
   els.start.disabled = true;
   let acquired = null;
   try {
-    setStatus("Loading hand tracker", "busy");
-    const fileset = await FilesetResolver.forVisionTasks("./vendor/mediapipe/wasm");
-    landmarker = await createLandmarker(fileset);
+    landmarker = await warmTracker();
 
     setStatus("Requesting camera", "busy");
     acquired = await navigator.mediaDevices.getUserMedia({
@@ -450,6 +517,14 @@ function loop() {
 /* ------------------------------------------------------------ wiring */
 
 els.start.addEventListener("click", start);
+
+// Intent, not the click. Someone who never goes near the button never pays for
+// the 8.7 MB.
+for (const event of ["pointerenter", "focus", "touchstart"]) {
+  els.start.addEventListener(event, () => {
+    if (!els.start.disabled) warmTracker().catch(() => {});
+  }, { once: true, passive: true });
+}
 els.clear.addEventListener("click", () => {
   els.spelled.textContent = "";
   suppressRecommit();

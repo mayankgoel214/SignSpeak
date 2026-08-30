@@ -13,5 +13,17 @@ done
 [ -f eval/results.json ] || { echo "missing eval/results.json -- run ml/evaluate.py first" >&2; exit 1; }
 cp eval/results.json web/models/results.json
 
+# Stamp the real uncompressed byte sizes so the page can show honest download
+# progress. Content-Length is the *compressed* length on the wire, so using it as
+# a denominator would run the progress bar past 100%.
+python3 - <<'PY'
+import json, os
+names = ["hand_landmarker.task", "signspeak.weights.json"]
+sizes = {n: os.path.getsize(os.path.join("web/models", n)) for n in names}
+with open("web/models/assets.json", "w") as f:
+    json.dump(sizes, f)
+print("  assets.json " + ", ".join(f"{n}={v}" for n, v in sizes.items()))
+PY
+
 echo "web/ is ready:"
 ls -lh web/models | awk 'NR>1 {print "  " $9 " " $5}'
