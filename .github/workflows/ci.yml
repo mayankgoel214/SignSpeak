@@ -18,16 +18,19 @@ jobs:
       # mediapipe and opencv are only needed to build the dataset cache, which
       # CI does not do. The tests that run here need numpy, torch and node.
       - run: pip install numpy torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install pytest scikit-learn
+      - run: pip install pytest scikit-learn onnxruntime
 
-      - name: python and javascript must agree
+      # Reconciles eval/results.json against its own confusion matrix, checks the
+      # checkpoint, the ONNX export and the browser weights against each other,
+      # and checks features.py against features.js under node.
+      - name: the numbers and the artefacts must agree
         run: python -m pytest ml/tests -q
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox webkit
       - name: assemble the static site
         run: bash scripts/build-web.sh
-      - name: browser tests
+      - name: browser tests, three engines
         run: npx playwright test
         env:
           CI: "1"

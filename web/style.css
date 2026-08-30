@@ -324,7 +324,7 @@ code {
   font-variant-numeric: tabular-nums;
   transition: color 0.15s;
 }
-.glyph__letter[data-idle="true"] { color: var(--n-500); }
+.glyph__letter[data-idle="true"] { color: var(--n-700); }
 .glyph__letter[data-committed="true"] { color: var(--accent); }
 
 .ranked { list-style: none; margin: 0; padding: 0 var(--sp-4) var(--sp-4); display: grid; gap: 7px; }
@@ -388,7 +388,7 @@ code {
   font-size: var(--t-micro);
   letter-spacing: 0;
   font-weight: 400;
-  color: var(--n-600);
+  color: var(--n-800);
 }
 .buffer__actions { display: flex; gap: var(--sp-2); }
 .buffer__actions .btn { flex: 1; padding: 6px 10px; font-size: var(--t-micro); }
@@ -404,9 +404,9 @@ code {
   font-family: var(--mono);
   font-size: var(--t-nano);
   letter-spacing: 0.05em;
-  color: var(--n-700);
+  color: var(--n-800);
 }
-.statusstrip b { color: var(--ink-faint); font-weight: 500; }
+.statusstrip b { color: var(--n-900); font-weight: 500; }
 
 /* ============================================================ sections */
 
@@ -521,8 +521,7 @@ code {
   top: -22px;
   bottom: -10px;
   width: 1px;
-  background: var(--accent);
-  opacity: 0.55;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .dots__mean span {
   position: absolute;
@@ -560,7 +559,7 @@ code {
   margin-top: var(--sp-5);
   font-family: var(--mono);
   font-size: var(--t-nano);
-  color: var(--n-700);
+  color: var(--n-800);
 }
 
 /* per-letter bars */
@@ -582,7 +581,7 @@ code {
 /* confusion matrix */
 .matrix-scroll { overflow-x: auto; padding-bottom: var(--sp-3); }
 .matrix { border-collapse: separate; border-spacing: 2px; font-family: var(--mono); font-size: var(--t-nano); }
-.matrix th { font-weight: 500; color: var(--n-700); padding: 0; }
+.matrix th { font-weight: 500; color: var(--n-800); padding: 0; }
 .matrix th[scope="col"] { height: 18px; }
 .matrix th[scope="row"] { width: 18px; text-align: right; padding-right: 5px; }
 .matrix td {
@@ -755,13 +754,13 @@ footer a:hover { color: var(--accent); }
 .readout__hint {
   padding: 0 var(--sp-4) var(--sp-4);
   font-size: var(--t-micro);
-  color: var(--n-700);
+  color: var(--n-800);
 }
 /* Declarative rather than a JS toggle: the same state attribute that drives the
    rest of the live styling drives this, so it cannot silently fail to fire. */
 .device[data-live="true"] .readout__hint { display: none; }
-.ranked li[data-placeholder="true"] b { color: var(--n-600); }
-.ranked li[data-placeholder="true"] .pct { color: var(--n-600); }
+.ranked li[data-placeholder="true"] b { color: var(--n-800); }
+.ranked li[data-placeholder="true"] .pct { color: var(--n-800); }
 
 .chart__foot {
   margin-top: var(--sp-3);
@@ -782,7 +781,7 @@ footer a:hover { color: var(--accent); }
 .minitable th {
   text-align: left;
   font-weight: 500;
-  color: var(--n-700);
+  color: var(--n-800);
   padding: 0 0 6px;
   border-bottom: 1px solid var(--border);
   text-transform: uppercase;
@@ -805,7 +804,7 @@ footer a:hover { color: var(--accent); }
 }
 .pairs__pair { display: flex; align-items: center; gap: 5px; font-family: var(--mono); }
 .pairs__pair b { font-weight: 600; color: var(--ink); }
-.pairs__arrow { color: var(--n-700); }
+.pairs__arrow { color: var(--n-800); }
 .pairs__track { height: 9px; background: var(--n-300); border-radius: 3px; overflow: hidden; }
 .pairs__fill { height: 100%; border-radius: 3px; background: var(--accent-fill); width: var(--w); }
 .pairs__val { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-faint); }
