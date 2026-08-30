@@ -20,6 +20,7 @@ const els = {
   clear: $("clear"),
   backspace: $("backspace"),
   fps: $("fps"),
+  delegate: $("delegate"),
   topbar: $("topbar"),
   grid: $("glyphgrid"),
   detailCanvas: $("detail-canvas"),
@@ -202,6 +203,40 @@ function renderAlphabet() {
 
 /* ------------------------------------------------------------ camera */
 
+// The tracker runs on the GPU where there is one. Some machines have no usable
+// WebGL -- an old browser, a headless runner, a user who turned it off -- and on
+// those the GPU delegate throws at construction and the demo would simply not
+// start. Falling back to the CPU keeps it working, more slowly.
+//
+// The fallback is announced, not silent: the status strip says which delegate is
+// in use, so a visitor reading 8 fps can see why.
+async function createLandmarker(fileset) {
+  const options = (delegate) => ({
+    baseOptions: { modelAssetPath: "./models/hand_landmarker.task", delegate },
+    runningMode: "VIDEO",
+    numHands: 1,
+    minHandDetectionConfidence: 0.5,
+    minHandPresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
+  try {
+    const tracker = await HandLandmarker.createFromOptions(fileset, options("GPU"));
+    setDelegate("GPU");
+    return tracker;
+  } catch (err) {
+    console.warn("SignSpeak: the GPU delegate is unavailable, falling back to CPU.", err);
+    const tracker = await HandLandmarker.createFromOptions(fileset, options("CPU"));
+    setDelegate("CPU");
+    return tracker;
+  }
+}
+
+function setDelegate(kind) {
+  els.delegate.innerHTML = `INFERENCE <b>on-device · ${kind}</b>`;
+  els.delegate.dataset.delegate = kind;
+}
+
 // How long to wait for the first frame before giving up on a stream.
 const FIRST_FRAME_TIMEOUT_MS = 8000;
 
@@ -260,14 +295,7 @@ async function start() {
   try {
     setStatus("Loading hand tracker", "busy");
     const fileset = await FilesetResolver.forVisionTasks("./vendor/mediapipe/wasm");
-    landmarker = await HandLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: "./models/hand_landmarker.task", delegate: "GPU" },
-      runningMode: "VIDEO",
-      numHands: 1,
-      minHandDetectionConfidence: 0.5,
-      minHandPresenceConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
+    landmarker = await createLandmarker(fileset);
 
     setStatus("Requesting camera", "busy");
     acquired = await navigator.mediaDevices.getUserMedia({

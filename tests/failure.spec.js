@@ -28,6 +28,11 @@ test.describe("when the camera will not start", () => {
       await page.locator("#start").click();
 
       await expect(page.locator("#status")).toHaveAttribute("data-kind", "error", { timeout: 30_000 });
+      // If the tracker never initialised, the page fails before it ever asks for
+      // a camera and every assertion below would be about the wrong failure.
+      await expect(page.locator("#delegate")).toHaveAttribute("data-delegate", /GPU|CPU/, {
+        timeout: 30_000,
+      });
       await expectCameraStubWasUsed(page);
       await expect(page.locator("#status-text")).toHaveText(expected);
       // The button must come back, or a refused permission is a dead end.
