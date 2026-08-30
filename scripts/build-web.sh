@@ -12,6 +12,8 @@ for f in models/signspeak.weights.json models/labels.json models/metadata.json m
 done
 [ -f eval/results.json ] || { echo "missing eval/results.json -- run ml/evaluate.py first" >&2; exit 1; }
 cp eval/results.json web/models/results.json
+# Optional: the page degrades to hiding the calibration card if this is absent.
+[ -f eval/calibration.json ] && cp eval/calibration.json web/models/calibration.json
 
 # Stamp the real uncompressed byte sizes so the page can show honest download
 # progress. Content-Length is the *compressed* length on the wire, so using it as

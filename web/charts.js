@@ -273,3 +273,74 @@ export function renderMatrix(root, results) {
   root.append(scroll, legend, readout);
   rest();
 }
+
+/* --------------------------------------------------- calibration */
+
+// A dumbbell per confidence band: what the model claimed, against how often it
+// was actually right. Two marks on one shared percentage axis, so the direction
+// and size of the gap is the shape of the chart rather than something to work
+// out from two columns of numbers.
+export function renderCalibration(root, calibration) {
+  const bands = calibration.reliability.filter((b) => b.share >= 0.005);
+  root.innerHTML = "";
+  const wrap = el("div", "bells");
+
+  for (const band of bands) {
+    const row = el("div", "bells__row");
+    const lo = Math.min(band.mean_confidence, band.accuracy);
+    const hi = Math.max(band.mean_confidence, band.accuracy);
+
+    const track = el("div", "bells__track");
+    const bar = el("div", "bells__link");
+    bar.style.left = `${lo * 100}%`;
+    bar.style.width = `${(hi - lo) * 100}%`;
+    const says = el("i", "bells__dot bells__dot--says");
+    says.style.left = `${band.mean_confidence * 100}%`;
+    const is = el("i", "bells__dot bells__dot--is");
+    is.style.left = `${band.accuracy * 100}%`;
+    track.append(bar, says, is);
+
+    row.append(
+      el("b", null, band.bin.replace("–", "–")),
+      track,
+      el("span", "bells__val", `${(band.accuracy * 100).toFixed(0)}%`)
+    );
+    row.title =
+      `${band.n.toLocaleString()} predictions claiming ${pct(band.mean_confidence, 1)}; ` +
+      `right ${pct(band.accuracy, 1)} of the time`;
+    wrap.append(row);
+  }
+
+  const legend = el("div", "bells__legend");
+  const key = (cls, text) => {
+    const item = el("span", "bells__key");
+    const dot = el("i", `bells__dot ${cls}`);
+    item.append(dot, document.createTextNode(text));
+    return item;
+  };
+  legend.append(key("bells__dot--says", "what it claimed"), key("bells__dot--is", "how often it was right"));
+  root.append(wrap, legend);
+}
+
+export function renderThresholds(root, calibration) {
+  const rows = calibration.thresholds.filter((t) => t.threshold > 0 && t.frames_kept > 0.01);
+  root.innerHTML = "";
+  const table = el("table", "minitable");
+  const thead = el("thead");
+  const hr = el("tr");
+  for (const h of ["Floor", "Frames kept", "Accuracy of those"]) hr.append(el("th", null, h));
+  thead.append(hr);
+  const tbody = el("tbody");
+  for (const t of rows) {
+    const tr = el("tr");
+    if (Math.abs(t.threshold - 0.7) < 1e-9) tr.dataset.current = "true";
+    tr.append(
+      el("td", null, t.threshold.toFixed(2) + (Math.abs(t.threshold - 0.7) < 1e-9 ? " · in use" : "")),
+      el("td", "n", pct(t.frames_kept, 1)),
+      el("td", "n strong", pct(t.accuracy_of_kept, 2))
+    );
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  root.append(table);
+}

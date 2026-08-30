@@ -59,6 +59,46 @@ test.describe("the page a visitor lands on", () => {
     expect(accuracies).toEqual([...accuracies].sort((a, b) => a - b));
   });
 
+  test("shows what the confidence number is worth", async ({ page }) => {
+    await page.goto("/index.html");
+    // The card is only shown when the measurement exists — the page must never
+    // draw a calibration curve it does not have.
+    await expect(page.locator("#calibration-card")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#calibration .bells__row")).not.toHaveCount(0);
+
+    // Every band's marks must sit where its numbers say. A dumbbell drawn at the
+    // wrong position tells a confident visual lie that the text does not.
+    const bands = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("#calibration .bells__row")).map((row) => ({
+        says: parseFloat(row.querySelector(".bells__dot--says").style.left),
+        is: parseFloat(row.querySelector(".bells__dot--is").style.left),
+        label: parseFloat(row.querySelector(".bells__val").textContent),
+      }))
+    );
+    expect(bands.length).toBeGreaterThan(3);
+    for (const band of bands) {
+      expect(Math.abs(band.is - band.label)).toBeLessThan(1);
+      expect(band.says).toBeGreaterThanOrEqual(0);
+      expect(band.says).toBeLessThanOrEqual(100);
+    }
+
+    // The threshold table must agree with the floor the page actually commits at.
+    await expect(page.locator('#thresholds tr[data-current="true"]')).toHaveCount(1);
+    await expect(page.locator('#thresholds tr[data-current="true"]')).toContainText("in use");
+
+    const note = await page.locator("#calibration-note").innerText();
+    expect(note).toMatch(/(under|over)-confident by \d/);
+    expect(note).not.toMatch(/NaN|undefined/);
+  });
+
+  test("hides the calibration card rather than inventing a curve", async ({ page }) => {
+    await page.route("**/models/calibration.json", (route) => route.abort());
+    await page.goto("/index.html");
+    await expect(page.locator("#verdict-value")).toHaveText(/%$/, { timeout: 20_000 });
+    await expect(page.locator("#calibration-card")).toBeHidden();
+    await expect(page.locator("#calibration .bells__row")).toHaveCount(0);
+  });
+
   test("draws a reference pose for every letter", async ({ page }) => {
     await page.goto("/index.html");
     await expect(page.locator(".glyphcell")).toHaveCount(24, { timeout: 20_000 });

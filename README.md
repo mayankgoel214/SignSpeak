@@ -227,8 +227,23 @@ a test checks they match the files actually served.
   webcam in a dim room is a harder problem and this evaluation does not measure it.
 - Static letters only. **This is not a translator.** ASL is a language with its own
   grammar, and recognising fingerspelled letters is a small corner of it.
+- **Nobody has measured this on a real webcam**, including me. Two attempts to
+  simulate one by compositing crops into a full frame turned out to measure the
+  compositing rather than the camera — [`docs/framing-experiment.md`](docs/framing-experiment.md)
+  is the write-up, and it is kept because the first answer was alarming, plausible
+  and wrong. What that work does establish is that a hand smaller than about a
+  third of the frame is where detection falls away, which is why the page says so.
+- **MediaPipe labels almost every hand in this dataset the same way** — 950 of 956
+  in a sample. The feature transform mirrors left onto right and a unit test proves
+  that mapping is exact, so the other hand works by construction; but that is a
+  proof about the transform, not evidence from data.
 - The confidence percentage beside a prediction is the model's own softmax
-  probability, which is not the same thing as being right.
+  probability. Measured across held-out signers it is **under**-confident by 3.3
+  points — when it claims 96% it is right 99% of the time — which is the safer
+  direction and is the label smoothing in the loss doing it deliberately. The full
+  reliability table and the commit-threshold trade-off are in
+  [`docs/EVALUATION.md`](docs/EVALUATION.md); reproduce with
+  `python ml/measure_calibration.py`.
 
 ## Credits
 

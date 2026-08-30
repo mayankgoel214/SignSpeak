@@ -1,0 +1,61 @@
+{
+  "n_images": 960,
+  "framings": {
+    "cropped": {
+      "detection_rate": 0.9958,
+      "accuracy": 0.9937,
+      "n_detected": 956
+    },
+    "black_0.25": {
+      "detection_rate": 0.8104,
+      "accuracy": 0.9165,
+      "n_detected": 778
+    },
+    "black_0.4": {
+      "detection_rate": 0.9969,
+      "accuracy": 0.9613,
+      "n_detected": 957
+    },
+    "black_0.6": {
+      "detection_rate": 0.9958,
+      "accuracy": 0.9665,
+      "n_detected": 956
+    },
+    "black_0.8": {
+      "detection_rate": 0.975,
+      "accuracy": 0.9712,
+      "n_detected": 936
+    },
+    "grey_0.25": {
+      "detection_rate": 0.5115,
+      "accuracy": 0.8187,
+      "n_detected": 491
+    },
+    "grey_0.4": {
+      "detection_rate": 0.5604,
+      "accuracy": 0.7305,
+      "n_detected": 538
+    },
+    "grey_0.6": {
+      "detection_rate": 0.6323,
+      "accuracy": 0.9028,
+      "n_detected": 607
+    },
+    "grey_0.8": {
+      "detection_rate": 0.6948,
+      "accuracy": 0.958,
+      "n_detected": 667
+    }
+  },
+  "handedness_cropped": {
+    "Left": {
+      "n": 950,
+      "accuracy": 0.9937
+    },
+    "Right": {
+      "n": 6,
+      "accuracy": 1.0
+    }
+  },
+  "conclusion": "Detection tracks the background, not the hand size. A pasted crop on a flat field leaves a hard rectangular seam that the palm detector does not cope with; no webcam produces that. These numbers measure compositing, not webcam performance, and must not be quoted as if they did."
+}

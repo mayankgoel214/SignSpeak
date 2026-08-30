@@ -58,9 +58,13 @@
           <video id="video" playsinline muted></video>
           <canvas id="overlay" class="overlay"></canvas>
           <div class="brackets" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <p class="viewport__hint" id="no-hand-hint" role="status">
+            No hand found. Move closer, so your hand fills more than about a third of the frame.
+          </p>
           <div class="viewport__idle">
             <h2>Point a hand at the camera</h2>
-            <p>Your browser will ask for permission. The video never leaves this device, and nothing is recorded.</p>
+            <p>Your browser will ask for permission. The video never leaves this device, and nothing is recorded.
+              Hold your hand close enough to fill a good part of the frame — that is where the tracker works.</p>
             <button id="start" class="btn btn--primary">Start the camera</button>
             <p><span class="kbd">Space</span> also starts and stops it</p>
           </div>
@@ -144,6 +148,30 @@
             99%, so this plots what is left over rather than 24 near-identical full bars.
           </p>
           <div class="chart" id="perletter"></div>
+        </div>
+
+        <div class="card card--wide" id="calibration-card" hidden>
+          <div class="split">
+            <div>
+              <h3 class="card__title">What the confidence number means</h3>
+              <p class="card__note">
+                The readout shows a percentage beside every letter. A softmax is not a probability
+                just because it sums to one, so this is measured the same way everything else here
+                is — across held-out signers. Each row is a band of claimed confidence against how
+                often predictions in that band were actually right.
+              </p>
+              <div class="chart" id="calibration"></div>
+              <p class="chart__foot" id="calibration-note"></p>
+            </div>
+            <div class="split__side">
+              <h3 class="card__title">Where the commit threshold sits</h3>
+              <p class="card__note">
+                A letter is only committed while the model is above a confidence floor. Raising it
+                trades frames away for accuracy; this is the trade at each setting.
+              </p>
+              <div class="chart" id="thresholds"></div>
+            </div>
+          </div>
         </div>
 
         <div class="card card--wide">

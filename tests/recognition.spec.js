@@ -306,12 +306,23 @@ test.describe("committing letters", () => {
     await expect(page.locator("#spelled")).toHaveText("LL", { timeout: 30_000 });
   });
 
-  test("no hand means no guess", async ({ page }) => {
+  test("no hand means no guess, and eventually some advice", async ({ page }) => {
     await driveWith(page, ["L"]);
     await expect(page.locator("#letter")).toHaveText("–", { timeout: 20_000 });
     await expect(page.locator("#letter")).toHaveAttribute("data-idle", "true");
     // Placeholder rows, not a confident reading of an empty frame.
     await expect(page.locator('#ranked li[data-placeholder="true"]')).toHaveCount(3);
     await expect(page.locator("#spelled")).toHaveText("");
+
+    // A dash alone tells someone nothing they can act on. The advice is measured
+    // -- detection falls off below about a third of the frame -- so it appears
+    // once the camera has been looking at nothing for a couple of seconds.
+    await expect(page.locator("#no-hand-hint")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#no-hand-hint")).toContainText("Move closer");
+
+    // And it must get out of the way the moment a hand comes back.
+    await page.evaluate(() => (window.__index = 0));
+    await expect(page.locator("#letter")).not.toHaveText("–", { timeout: 20_000 });
+    await expect(page.locator("#no-hand-hint")).toBeHidden();
   });
 });

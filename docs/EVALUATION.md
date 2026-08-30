@@ -115,6 +115,48 @@ The confusion matrix is at `eval/confusion-matrix.png`.
 - **E → O and N → M** are the other real pairs: in each case the difference is how far the
   fingers curl, which a landmark model sees only as small distances between joints.
 
+## Is the confidence number worth anything
+
+Measured under the same leave-one-signer-out protocol, over 65,522 predictions
+on unseen people. The model is **under-confident by 3.3 points**:
+it claims 88.9% on average and is right 92.2% of the time.
+Expected calibration error 3.4%.
+
+Understating is the safer direction to be wrong in, and it is not an accident: the loss
+uses label smoothing, which exists to stop a network being maximally certain, and this is
+what that looks like from the outside.
+
+| claimed confidence | predictions | says | actually right |
+| --- | ---: | ---: | ---: |
+| 0.1–0.2 | 132 | 17.4% | 22.0% |
+| 0.2–0.3 | 544 | 25.6% | 20.8% |
+| 0.3–0.4 | 968 | 35.6% | 34.2% |
+| 0.4–0.5 | 1,670 | 45.5% | 46.1% |
+| 0.5–0.6 | 2,071 | 55.1% | 63.3% |
+| 0.6–0.7 | 2,419 | 65.2% | 72.0% |
+| 0.7–0.8 | 3,129 | 75.3% | 82.0% |
+| 0.8–0.9 | 6,067 | 85.8% | 90.9% |
+| 0.9–1.0 | 48,522 | 96.3% | 99.0% |
+
+### The commit threshold
+
+A letter is committed only while the model stays above a confidence floor. The page uses
+0.70, which was picked by hand before any of this was measured and turns out to sit at a
+reasonable knee:
+
+| floor | frames kept | accuracy of those |
+| ---: | ---: | ---: |
+| 0.00 | 100.0% | 92.18% |
+| 0.50 | 94.9% | 95.09% |
+| 0.60 | 91.8% | 96.19% |
+| 0.70 ← in use | 88.1% | 97.20% |
+| 0.80 | 83.3% | 98.07% |
+| 0.90 | 74.1% | 98.97% |
+| 0.95 | 59.3% | 99.57% |
+
+Discarding 12% of frames buys five points of accuracy; going further to 0.90 costs another
+14% of frames for under two. Reproduce with `python ml/measure_calibration.py`.
+
 ## Honest limits
 
 - Five signers is a small population. The per-fold spread is the best available evidence of
@@ -125,3 +167,12 @@ The confusion matrix is at `eval/confusion-matrix.png`.
   room is a harder problem, and this evaluation does not measure it.
 - Static letters only. Fingerspelling is not the same thing as signing ASL, which is a
   language with its own grammar, and a letter classifier is not a translator.
+- **MediaPipe labels almost every hand in this dataset the same way** — 950 of 956 in a
+  sample come back as one handedness. The feature transform mirrors left onto right, and
+  `ml/tests/test_features.py` proves that mapping is exact, so the other hand is handled by
+  construction. But it is handled by a proof about the transform, not by evidence from data.
+- **Nobody has measured this on a real webcam.** Attempts to simulate one by compositing
+  crops into a full frame measured the compositing rather than the camera; see
+  `docs/framing-experiment.md`. What that work did establish is that a hand smaller than
+  about a third of the frame is where detection starts to fall away, which is why the page
+  says so.

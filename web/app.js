@@ -2,7 +2,15 @@ import { FilesetResolver, HandLandmarker } from "./vendor/mediapipe/vision_bundl
 import { normalize } from "./features.js";
 import { Classifier } from "./model.js";
 import { drawSkeleton, layoutPose } from "./hand.js";
-import { renderComparison, renderFolds, renderPerLetter, renderMatrix, renderConfusionList } from "./charts.js";
+import {
+  renderComparison,
+  renderFolds,
+  renderPerLetter,
+  renderMatrix,
+  renderConfusionList,
+  renderCalibration,
+  renderThresholds,
+} from "./charts.js";
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -34,6 +42,10 @@ const els = {
   perletter: $("perletter"),
   matrix: $("matrix"),
   pairs: $("pairs"),
+  calibration: $("calibration"),
+  calibrationCard: $("calibration-card"),
+  calibrationNote: $("calibration-note"),
+  thresholds: $("thresholds"),
   readoutHint: $("readout-hint"),
 };
 
@@ -49,6 +61,13 @@ const HOLD_MS = 500;
 const RELEASE_MS = 400;
 const CONFIDENCE_FLOOR = 0.7;
 
+// How long the camera can see no hand before the page offers advice rather than
+// a dash. The advice is specific because it is measured: detection holds at
+// 97-100% while the hand is more than about a third of the frame and falls to
+// 81% at a quarter of it (docs/framing-experiment.md), so "move closer" is the
+// one thing a visitor can usefully do.
+const NO_HAND_HINT_MS = 2500;
+
 const RING_CIRCUMFERENCE = 2 * Math.PI * 76;
 
 let landmarker = null;
@@ -61,6 +80,7 @@ let stableLabel = null;
 let stableSince = 0;
 let lastCommitted = null;
 let releaseSince = 0;
+let noHandSince = 0;
 let frameTimes = [];
 
 /* ------------------------------------------------------------ chrome */
@@ -104,6 +124,34 @@ async function loadResults() {
   renderPerLetter(els.perletter, results, { onSelect: selectLetter });
   renderMatrix(els.matrix, results);
   renderConfusionList(els.pairs, results);
+  await loadCalibration();
+}
+
+// Calibration is measured by a separate script and is optional: if it has not
+// been run, the card stays hidden rather than the page inventing a curve.
+async function loadCalibration() {
+  try {
+    const res = await fetch("./models/calibration.json");
+    if (!res.ok) return;
+    const calibration = await res.json();
+    renderCalibration(els.calibration, calibration);
+    renderThresholds(els.thresholds, calibration);
+
+    const gap = calibration.overconfidence;
+    const direction = gap < 0 ? "under-confident" : "over-confident";
+    els.calibrationNote.textContent =
+      `Across ${calibration.n_predictions.toLocaleString()} predictions on unseen signers the model is ` +
+      `${direction} by ${Math.abs(gap * 100).toFixed(1)} points — it claims ` +
+      `${(calibration.mean_confidence * 100).toFixed(1)}% on average and is right ` +
+      `${(calibration.overall_accuracy * 100).toFixed(1)}% of the time. ` +
+      (gap < 0
+        ? "Understating is the safer direction to be wrong in, and it is the label smoothing in the loss doing it on purpose."
+        : "Overstating is the dangerous direction, and it is worth knowing before trusting the number beside a letter.") +
+      ` Expected calibration error ${(calibration.expected_calibration_error * 100).toFixed(1)}%.`;
+    els.calibrationCard.hidden = false;
+  } catch {
+    // Leave the card hidden.
+  }
 }
 
 function evidenceFailed(message) {
@@ -396,6 +444,8 @@ function stop() {
   stream = null;
   els.video.srcObject = null;
   els.device.dataset.live = "false";
+  setNoHandHint(false);
+  noHandSince = 0;
   els.start.disabled = false;
   els.holdHint.textContent = "";
   setHold(0);
@@ -447,6 +497,10 @@ function showPrediction(ranked) {
     .join("");
 }
 
+function setNoHandHint(show) {
+  els.device.dataset.noHand = String(show);
+}
+
 function showNoHand() {
   els.letter.textContent = "–";
   els.letter.dataset.idle = "true";
@@ -480,6 +534,9 @@ function loop() {
         { lineWidth: 3, dotRadius: 4.5, color: "#f5bb64", jointColor: "#f3f2ed" }
       );
 
+      noHandSince = 0;
+      setNoHandHint(false);
+
       const ranked = classifier.predict(normalize(lm, handedness));
       const top = ranked[0];
       const confident = top.confidence >= CONFIDENCE_FLOOR ? top.label : null;
@@ -502,6 +559,8 @@ function loop() {
       stableSince = 0;
       setHold(0);
       trackRelease(now);
+      if (!noHandSince) noHandSince = now;
+      if (now - noHandSince >= NO_HAND_HINT_MS) setNoHandHint(true);
     }
 
     frameTimes.push(now);

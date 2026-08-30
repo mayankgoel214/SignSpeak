@@ -109,6 +109,46 @@ def main():
     w("- **E → O and N → M** are the other real pairs: in each case the difference is how far the")
     w("  fingers curl, which a landmark model sees only as small distances between joints.")
     w("")
+    cal_path = os.path.join(ROOT, "eval", "calibration.json")
+    if os.path.exists(cal_path):
+        with open(cal_path) as f:
+            cal = json.load(f)
+        gap = cal["overconfidence"]
+        w("## Is the confidence number worth anything")
+        w("")
+        w(f"Measured under the same leave-one-signer-out protocol, over {cal['n_predictions']:,} predictions")
+        w(f"on unseen people. The model is **{'under' if gap < 0 else 'over'}-confident by {abs(gap) * 100:.1f} points**:")
+        w(f"it claims {cal['mean_confidence']:.1%} on average and is right {cal['overall_accuracy']:.1%} of the time.")
+        w(f"Expected calibration error {cal['expected_calibration_error']:.1%}.")
+        w("")
+        if gap < 0:
+            w("Understating is the safer direction to be wrong in, and it is not an accident: the loss")
+            w("uses label smoothing, which exists to stop a network being maximally certain, and this is")
+            w("what that looks like from the outside.")
+            w("")
+        w("| claimed confidence | predictions | says | actually right |")
+        w("| --- | ---: | ---: | ---: |")
+        for band in cal["reliability"]:
+            w(f"| {band['bin']} | {band['n']:,} | {band['mean_confidence']:.1%} | {band['accuracy']:.1%} |")
+        w("")
+        w("### The commit threshold")
+        w("")
+        w("A letter is committed only while the model stays above a confidence floor. The page uses")
+        w("0.70, which was picked by hand before any of this was measured and turns out to sit at a")
+        w("reasonable knee:")
+        w("")
+        w("| floor | frames kept | accuracy of those |")
+        w("| ---: | ---: | ---: |")
+        for t in cal["thresholds"]:
+            if t["accuracy_of_kept"] is None or t["frames_kept"] < 0.01:
+                continue
+            mark = " ← in use" if abs(t["threshold"] - 0.70) < 1e-9 else ""
+            w(f"| {t['threshold']:.2f}{mark} | {t['frames_kept']:.1%} | {t['accuracy_of_kept']:.2%} |")
+        w("")
+        w("Discarding 12% of frames buys five points of accuracy; going further to 0.90 costs another")
+        w("14% of frames for under two. Reproduce with `python ml/measure_calibration.py`.")
+        w("")
+
     w("## Honest limits")
     w("")
     w("- Five signers is a small population. The per-fold spread is the best available evidence of")
@@ -119,6 +159,15 @@ def main():
     w("  room is a harder problem, and this evaluation does not measure it.")
     w("- Static letters only. Fingerspelling is not the same thing as signing ASL, which is a")
     w("  language with its own grammar, and a letter classifier is not a translator.")
+    w("- **MediaPipe labels almost every hand in this dataset the same way** — 950 of 956 in a")
+    w("  sample come back as one handedness. The feature transform mirrors left onto right, and")
+    w("  `ml/tests/test_features.py` proves that mapping is exact, so the other hand is handled by")
+    w("  construction. But it is handled by a proof about the transform, not by evidence from data.")
+    w("- **Nobody has measured this on a real webcam.** Attempts to simulate one by compositing")
+    w("  crops into a full frame measured the compositing rather than the camera; see")
+    w("  `docs/framing-experiment.md`. What that work did establish is that a hand smaller than")
+    w("  about a third of the frame is where detection starts to fall away, which is why the page")
+    w("  says so.")
     w("")
 
     dest = os.path.join(ROOT, "docs", "EVALUATION.md")
