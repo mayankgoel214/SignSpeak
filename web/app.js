@@ -36,12 +36,17 @@ const els = {
   readoutHint: $("readout-hint"),
 };
 
-// A letter is committed once the same prediction has held for this many frames
-// above the confidence floor. Without it the buffer fills with whatever the hand
+// A letter is committed once the same prediction has held for this long above
+// the confidence floor. Without it the buffer fills with whatever the hand
 // passed through on its way to the sign.
-const HOLD_FRAMES = 12;
+//
+// These are milliseconds, not frame counts, and that matters: the loop runs as
+// fast as the device can track, so a 12-frame threshold is a fifth of a second
+// on a fast laptop and well over a second on a slow phone. The page tells the
+// visitor to hold a sign for about half a second, and it should be true of both.
+const HOLD_MS = 500;
+const RELEASE_MS = 400;
 const CONFIDENCE_FLOOR = 0.7;
-const RELEASE_FRAMES = 8;
 
 const RING_CIRCUMFERENCE = 2 * Math.PI * 76;
 
@@ -52,9 +57,9 @@ let stream = null;
 let running = false;
 let lastVideoTime = -1;
 let stableLabel = null;
-let stableCount = 0;
+let stableSince = 0;
 let lastCommitted = null;
-let awayCount = 0;
+let releaseSince = 0;
 let frameTimes = [];
 
 /* ------------------------------------------------------------ chrome */
@@ -197,8 +202,61 @@ function renderAlphabet() {
 
 /* ------------------------------------------------------------ camera */
 
+// How long to wait for the first frame before giving up on a stream.
+const FIRST_FRAME_TIMEOUT_MS = 8000;
+
+// video.play() is not a reliable signal that a camera is working. It rejects
+// when autoplay is blocked even though the stream is fine, and in WebKit it can
+// simply never settle for some streams -- which would leave this page stuck on
+// "Requesting camera" for ever with the camera light on and no way back. Frames
+// arriving is the only thing that actually means the camera is working, so that
+// is what is waited on.
+function waitForFirstFrame(video) {
+  video.play().catch(() => {});
+  if (video.readyState >= 2) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const done = (fn) => () => { cleanup(); fn(); };
+    const ok = done(resolve);
+    const fail = done(() => {
+      const err = new Error("the camera stream never produced a frame");
+      err.name = "NoFrameError";
+      reject(err);
+    });
+    const timer = setTimeout(fail, FIRST_FRAME_TIMEOUT_MS);
+    function cleanup() {
+      clearTimeout(timer);
+      video.removeEventListener("loadeddata", ok);
+      video.removeEventListener("error", fail);
+    }
+    video.addEventListener("loadeddata", ok, { once: true });
+    video.addEventListener("error", fail, { once: true });
+  });
+}
+
+// A failure has to say what actually went wrong. Reporting everything as
+// "permission refused" sends someone to a browser setting that was never the
+// problem.
+function describeStartFailure(err) {
+  switch (err && err.name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return "Camera permission refused";
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return "No camera found on this device";
+    case "NotReadableError":
+    case "AbortError":
+      return "The camera is in use by another app";
+    case "NoFrameError":
+      return "Camera opened but sent no video";
+    default:
+      return `Could not start: ${err && err.message ? err.message : err}`;
+  }
+}
+
 async function start() {
   els.start.disabled = true;
+  let acquired = null;
   try {
     setStatus("Loading hand tracker", "busy");
     const fileset = await FilesetResolver.forVisionTasks("./vendor/mediapipe/wasm");
@@ -212,12 +270,14 @@ async function start() {
     });
 
     setStatus("Requesting camera", "busy");
-    stream = await navigator.mediaDevices.getUserMedia({
+    acquired = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
     });
-    els.video.srcObject = stream;
-    await els.video.play();
+    els.video.srcObject = acquired;
+    await waitForFirstFrame(els.video);
 
+    stream = acquired;
+    acquired = null;
     els.overlay.width = els.video.videoWidth || 640;
     els.overlay.height = els.video.videoHeight || 480;
     running = true;
@@ -226,13 +286,12 @@ async function start() {
     setStatus("Live · nothing uploaded", "ok");
     requestAnimationFrame(loop);
   } catch (err) {
+    // Never leave a camera open behind a failure message. By this point the
+    // permission may already have been granted and the light already on.
+    if (acquired) for (const track of acquired.getTracks()) track.stop();
+    els.video.srcObject = null;
     els.start.disabled = false;
-    setStatus(
-      err && err.name === "NotAllowedError"
-        ? "Camera permission refused"
-        : `Could not start: ${err.message}`,
-      "error"
-    );
+    setStatus(describeStartFailure(err), "error");
   }
 }
 
@@ -247,6 +306,31 @@ function stop() {
   setHold(0);
   showNoHand();
   setStatus("Camera stopped", "idle");
+}
+
+// The same letter twice in a row is a real word ("HELLO"), so a committed letter
+// has to be releasable. Release means the sign stopped being the committed one --
+// hand gone, or a different sign, or confidence dropped -- for long enough that
+// it was deliberate rather than a flicker.
+function trackRelease(now) {
+  if (stableLabel === lastCommitted) {
+    releaseSince = 0;
+    return;
+  }
+  if (!releaseSince) releaseSince = now;
+  if (now - releaseSince >= RELEASE_MS) {
+    lastCommitted = null;
+    releaseSince = 0;
+  }
+}
+
+// After the buffer is edited by hand, the sign still in front of the camera must
+// not immediately re-commit itself: clearing the buffer while holding a letter
+// would refill it instantly. Treating the held sign as already committed means
+// the visitor has to release and sign again, which is what they meant.
+function suppressRecommit() {
+  lastCommitted = stableLabel;
+  releaseSince = 0;
 }
 
 function commit(label) {
@@ -303,28 +387,26 @@ function loop() {
 
       const ranked = classifier.predict(normalize(lm, handedness));
       const top = ranked[0];
-
-      if (top.confidence >= CONFIDENCE_FLOOR && top.label === stableLabel) {
-        stableCount += 1;
-      } else {
-        stableLabel = top.confidence >= CONFIDENCE_FLOOR ? top.label : null;
-        stableCount = stableLabel ? 1 : 0;
+      const confident = top.confidence >= CONFIDENCE_FLOOR ? top.label : null;
+      if (confident !== stableLabel) {
+        stableLabel = confident;
+        stableSince = now;
       }
-      awayCount = 0;
 
-      if (stableLabel && stableCount === HOLD_FRAMES && stableLabel !== lastCommitted) {
+      const held = stableLabel ? now - stableSince : 0;
+      if (stableLabel && held >= HOLD_MS && stableLabel !== lastCommitted) {
         commit(stableLabel);
         lastCommitted = stableLabel;
       }
       showPrediction(ranked);
-      setHold(stableLabel === lastCommitted ? 1 : stableCount / HOLD_FRAMES);
+      setHold(stableLabel && stableLabel === lastCommitted ? 1 : held / HOLD_MS);
+      trackRelease(now);
     } else {
       showNoHand();
       stableLabel = null;
-      stableCount = 0;
+      stableSince = 0;
       setHold(0);
-      awayCount += 1;
-      if (awayCount >= RELEASE_FRAMES) lastCommitted = null;
+      trackRelease(now);
     }
 
     frameTimes.push(now);
@@ -340,10 +422,13 @@ function loop() {
 /* ------------------------------------------------------------ wiring */
 
 els.start.addEventListener("click", start);
-els.clear.addEventListener("click", () => { els.spelled.textContent = ""; lastCommitted = null; });
+els.clear.addEventListener("click", () => {
+  els.spelled.textContent = "";
+  suppressRecommit();
+});
 els.backspace.addEventListener("click", () => {
   els.spelled.textContent = els.spelled.textContent.slice(0, -1);
-  lastCommitted = null;
+  suppressRecommit();
 });
 
 document.addEventListener("keydown", (e) => {
@@ -356,7 +441,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Backspace" && running) {
     e.preventDefault();
     els.spelled.textContent = els.spelled.textContent.slice(0, -1);
-    lastCommitted = null;
+    suppressRecommit();
   }
 });
 

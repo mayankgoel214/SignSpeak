@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
+import { WEBKIT_CANNOT_FAKE_A_CAMERA } from "./support/camera.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, "fixtures", "browser-cases.json");
@@ -136,6 +137,7 @@ test.describe("the model, in the browser, on real images", () => {
 
 test.describe("the live camera path", () => {
   test.skip(!fixture, `missing ${FIXTURE} — run: python ml/make_browser_fixture.py`);
+  test.skip(({ browserName }) => browserName === "webkit", WEBKIT_CANNOT_FAKE_A_CAMERA);
   test.setTimeout(180_000);
 
   test("reads a hand from the camera and spells it", async ({ page }) => {
@@ -187,7 +189,12 @@ test.describe("the live camera path", () => {
     // A steady hand must eventually commit exactly one letter, not a stream of them.
     await expect(page.locator("#spelled")).toHaveText(target.letter, { timeout: 30_000 });
 
+    // Backspace while the sign is still up must not instantly refill the buffer.
+    // It did: the letter came straight back, which made this test flaky rather
+    // than red and would have been maddening to use.
     await page.locator("#backspace").click();
+    await expect(page.locator("#spelled")).toHaveText("");
+    await page.waitForTimeout(1500);
     await expect(page.locator("#spelled")).toHaveText("");
 
     // Space stops the camera, and stopping must actually release the track
@@ -197,5 +204,99 @@ test.describe("the live camera path", () => {
     await expect(page.locator("#device")).toHaveAttribute("data-live", "false");
     await expect(page.locator("#status")).toHaveText(/Camera stopped/);
     expect(await page.evaluate(() => document.getElementById("video").srcObject)).toBeNull();
+  });
+});
+
+test.describe("committing letters", () => {
+  test.skip(!fixture, `missing ${FIXTURE} — run: python ml/make_browser_fixture.py`);
+  test.skip(({ browserName }) => browserName === "webkit", WEBKIT_CANNOT_FAKE_A_CAMERA);
+  test.setTimeout(180_000);
+
+  // The hold-and-release rule is the only real product logic in the page, and
+  // it has two failure modes that look nothing alike: a held sign repeating
+  // itself into the buffer, and a genuine double letter refusing to appear.
+  async function driveWith(page, letters) {
+    const frames = letters.map((l) => {
+      const c = fixture.cases.find((x) => x.letter === l);
+      if (!c) throw new Error(`no fixture image for ${l}`);
+      return c.png_base64;
+    });
+
+    await page.addInitScript(({ frames, padRatio }) => {
+      window.__index = 0;
+      navigator.mediaDevices.getUserMedia = async () => {
+        const images = await Promise.all(
+          frames.map(async (b64) => {
+            const img = new Image();
+            img.src = `data:image/png;base64,${b64}`;
+            await img.decode();
+            return img;
+          })
+        );
+        const c = document.createElement("canvas");
+        c.width = 640;
+        c.height = 480;
+        const ctx = c.getContext("2d");
+        const draw = () => {
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, c.width, c.height);
+          const img = window.__index >= 0 ? images[window.__index] : null;
+          if (img) {
+            const pad = Math.round(Math.max(img.width, img.height) * padRatio);
+            const side = Math.max(img.width, img.height) + 2 * pad;
+            const scale = Math.min(c.width / side, c.height / side) * 1.6;
+            ctx.drawImage(
+              img,
+              (c.width - img.width * scale) / 2,
+              (c.height - img.height * scale) / 2,
+              img.width * scale,
+              img.height * scale
+            );
+          }
+          requestAnimationFrame(draw);
+        };
+        draw();
+        return c.captureStream(30);
+      };
+    }, { frames, padRatio: fixture.pad_ratio });
+
+    await page.goto("/index.html");
+    await page.evaluate(() => (window.__index = -1));
+    await page.locator("#start").click();
+    await expect(page.locator("#status")).toHaveAttribute("data-kind", "ok", { timeout: 60_000 });
+  }
+
+  test("a sign held without release commits exactly once", async ({ page }) => {
+    await driveWith(page, ["L"]);
+    await page.evaluate(() => (window.__index = 0));
+    await expect(page.locator("#spelled")).toHaveText("L", { timeout: 30_000 });
+
+    // Hold it far longer than the commit window. If the release rule is wrong
+    // this fills up with L's, and a demo that spells LLLLLL is unusable.
+    await page.waitForTimeout(4000);
+    await expect(page.locator("#spelled")).toHaveText("L");
+  });
+
+  test("the same letter twice in a row still spells twice", async ({ page }) => {
+    await driveWith(page, ["L"]);
+    await page.evaluate(() => (window.__index = 0));
+    await expect(page.locator("#spelled")).toHaveText("L", { timeout: 30_000 });
+
+    await page.evaluate(() => (window.__index = -1));
+    await expect(page.locator("#letter")).toHaveText("–", { timeout: 20_000 });
+    // Hold the release long enough to be deliberate, the way a person lowering
+    // their hand between two letters would.
+    await page.waitForTimeout(700);
+    await page.evaluate(() => (window.__index = 0));
+    await expect(page.locator("#spelled")).toHaveText("LL", { timeout: 30_000 });
+  });
+
+  test("no hand means no guess", async ({ page }) => {
+    await driveWith(page, ["L"]);
+    await expect(page.locator("#letter")).toHaveText("–", { timeout: 20_000 });
+    await expect(page.locator("#letter")).toHaveAttribute("data-idle", "true");
+    // Placeholder rows, not a confident reading of an empty frame.
+    await expect(page.locator('#ranked li[data-placeholder="true"]')).toHaveCount(3);
+    await expect(page.locator("#spelled")).toHaveText("");
   });
 });
