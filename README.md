@@ -1,5 +1,7 @@
 # SignSpeak
 
+[![ci](https://github.com/mayankgoel214/SignSpeak/actions/workflows/ci.yml/badge.svg)](https://github.com/mayankgoel214/SignSpeak/actions/workflows/ci.yml)
+
 American Sign Language fingerspelling recognised in the browser, on the visitor's
 own device. MediaPipe reduces a webcam frame to 21 hand landmarks; a small PyTorch
 classifier turns those landmarks into one of 24 letters. There is no server, no
@@ -114,28 +116,56 @@ Then open http://127.0.0.1:8099. The camera needs `localhost` or HTTPS.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest ml/tests -q   # 10 tests
-npm ci && npx playwright install chromium
-npx playwright test                      # 6 tests
+.venv/bin/python -m pytest ml/tests -q                    # 33 tests
+npm ci && npx playwright install chromium firefox webkit
+npx playwright test                                       # 27 tests x 3 engines
 ```
 
-The tests worth knowing about, because they exist to catch failures that a
-conventional suite would not:
+Chromium, Firefox and WebKit all run the suite. The tests worth knowing about,
+because each exists to catch a failure a conventional suite would not:
 
-- **`test_feature_parity.py`** runs `web/features.js` under node against
-  `ml/features.py` on random inputs. The model is trained in Python and runs in a
-  browser; if the two normalizers drift apart, the accuracy figure stays true of a
-  model nobody can use. It caught a real input-shape bug the first time it ran.
-- **`test_model_parity.py`** folds a freshly initialised network and checks that
-  `web/model.js` reproduces PyTorch's logits. The browser reimplements the forward
-  pass by hand rather than shipping an inference runtime, which is only defensible
-  if it is checked.
-- **`recognition.spec.js`** pushes real dataset images through Chromium — the
-  vendored MediaPipe build, the real feature code, the real weights — and requires
-  the browser to reach the same letter as Python on at least 95% of them. It also
-  drives the actual page with a stubbed camera and asserts that a steady hand
-  spells exactly one letter. These skip, loudly, without the fixture; regenerate it
-  with `python ml/make_browser_fixture.py` after downloading the dataset.
+- **`test_results_integrity.py`** recomputes the published figures from the raw
+  confusion matrix — pooled accuracy, per-class accuracy, the top confusions, the
+  fold sizes, the leak gap. The 92.2% is quoted in this README, on the live page,
+  in the social card and in the generated evaluation document, and all of them
+  read one file. If that file is inconsistent with itself the whole story is
+  wrong everywhere at once, confidently.
+- **`test_shipped_artifacts.py`** checks the three files that each claim to be
+  the classifier — the checkpoint, the ONNX export, and the JSON the browser runs
+  — against each other. Each is written by a separate script, so any of them can
+  go stale silently, and a stale export means the live page runs a model nobody
+  measured.
+- **`test_feature_parity.py`** and **`test_model_parity.py`** run `features.js`
+  and `model.js` under node against their Python originals. The model is trained
+  in Python and runs in a browser; if the two drift apart the accuracy figure
+  stays true of a model nobody can use. The first caught a real input-shape bug
+  the first time it ran.
+- **`parity.spec.js`** takes 240 real hands, as landmarks, through the browser's
+  own copy of the feature code and the weights, and requires the same letter
+  Python reached. 240/240 on all three engines.
+- **`failure.spec.js`** drives the ways the camera can fail — refused, absent,
+  in use elsewhere, opened-but-silent — and asserts each is reported accurately,
+  that the page recovers, and that a failed start does not leave a camera
+  running. It also aborts `results.json` and requires the page to show nothing
+  rather than a number it invented.
+- **`loading.spec.js`** guards behaviour that is invisible when it breaks,
+  because the page still works — just slowly and silently: that nothing heavy
+  loads before it is wanted, that hovering the button begins the download and
+  clicking does not repeat the 8.7 MB, and that a slow download reports honest
+  progress.
+- **`a11y.spec.js`** runs axe over the idle page, the phone layout and the live
+  camera state, plus checks a rule engine cannot make: that a focus ring is
+  actually visible on this dark surface, and that every text role clears WCAG AA
+  against the surface behind it.
+- **`recognition.spec.js`** pushes real dataset *images* through the browser —
+  the vendored MediaPipe build, re-detecting the same photograph — and drives the
+  page with a stubbed camera to check the hold-and-release rule. These need the
+  image fixture and skip, loudly, without it.
+
+WebKit's camera tests are skipped for a measured reason rather than an assumed
+one: Playwright's WebKit returns a stubbed `getUserMedia` from the property and
+still invokes the native one at call time, which had made a "permission refused"
+test pass for entirely the wrong reason. Every other WebKit test runs.
 
 There are two fixtures, and the difference matters. `landmark-cases.json` holds
 240 real hands as landmark coordinates plus the letter the Python model predicts
@@ -161,6 +191,25 @@ collects, and any fork, clone or cache made before the rewrite still has them. S
 this reduces the exposure; it does not undo it. The commit hashes of this
 repository changed at that point, which is why anything referring to an older one
 will not resolve.
+
+## What it costs to load
+
+Measured against the deployed site:
+
+| | |
+| --- | --- |
+| Idle page | **0.36 MB**, first paint **308 ms**, interactive under a second |
+| Starting the camera | **+8.7 MB** — the MediaPipe WebAssembly build and the 7.8 MB hand-landmark model |
+| Click to live camera, cold | ~3.8 s on fast wifi, ~38 s throttled to 4 Mbps |
+| Click to live camera, after hovering the button | **55 ms** |
+
+Nothing heavy loads until someone shows intent. The download starts on hover,
+focus or touch of the start button rather than on the click, so the common case
+is already warm and a visitor who never goes near it pays nothing. While it does
+download, the model reports true progress against its real uncompressed size —
+`Content-Length` is the compressed length on the wire and would run the counter
+past 100%, so `scripts/build-web.sh` stamps the real sizes into `assets.json` and
+a test checks they match the files actually served.
 
 ## Honest limits
 
