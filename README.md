@@ -146,10 +146,21 @@ the full MediaPipe-in-Chromium check; it is **not** committed, because those
 images are not mine to redistribute, and the tests that need it skip loudly.
 
 An earlier version of this README claimed the image fixture was not committed
-while it was, from the first commit of the rebuild until it was removed. It is
-untracked now, `ml/tests/test_repository_hygiene.py` fails if it is ever tracked
-again, and the history has not been rewritten — saying so is more honest than a
-tidy log.
+while it was: 3 MB of base64 dataset photographs, present from the first commit
+of the rebuild until they were removed. It is untracked and ignored now, and
+`ml/tests/test_repository_hygiene.py` fails if it is ever tracked again or if any
+committed fixture carries encoded images.
+
+**The history was rewritten on 2026-08-30** to strip that file from every commit,
+and `main` was force-pushed. That is a deliberate exception to leaving history
+alone: the point was not to make the log look tidy but to stop redistributing
+images that are not mine to redistribute. It is worth being precise about what a
+rewrite does and does not achieve — the blobs are unreachable from any branch,
+but GitHub keeps unreachable objects addressable by their hash until it garbage
+collects, and any fork, clone or cache made before the rewrite still has them. So
+this reduces the exposure; it does not undo it. The commit hashes of this
+repository changed at that point, which is why anything referring to an older one
+will not resolve.
 
 ## Honest limits
 
