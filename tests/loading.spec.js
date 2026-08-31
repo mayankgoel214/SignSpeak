@@ -157,4 +157,35 @@ test.describe("stopping and starting again", () => {
     expect(modelRequests).toHaveLength(1);
     expect(errors).toEqual([]);
   });
+
+  test("a restart starts clean, with no state carried over from the last session", async ({ page }) => {
+    test.skip(!fixture, "run: python ml/make_browser_fixture.py");
+
+    // Stopping while a sign is still up used to leave lastCommitted set, so the
+    // very first letter of the next session silently refused to commit until the
+    // hand was dropped. Nothing about that looks broken; it just does not work.
+    const target = fixture.cases.find((c) => c.letter === "L") || fixture.cases[0];
+    await installCamera(page, { frames: [target.png_base64], padRatio: fixture.pad_ratio });
+    await page.goto("/index.html");
+    await expectCameraStubbed(page);
+
+    await page.locator("#start").click();
+    await expect(page.locator("#spelled")).toHaveText(target.letter, { timeout: 90_000 });
+
+    // Stop with the sign still in front of the camera.
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Space");
+    await expect(page.locator("#device")).toHaveAttribute("data-live", "false");
+
+    // The frame rate must not be reported as an average across the gap.
+    await expect(page.locator("#fps")).toHaveText("FPS —");
+
+    await page.keyboard.press("Space");
+    await expect(page.locator("#status")).toHaveAttribute("data-kind", "ok", { timeout: 90_000 });
+
+    // The same letter, never released, must still spell on the new session.
+    await expect(page.locator("#spelled")).toHaveText(target.letter + target.letter, {
+      timeout: 40_000,
+    });
+  });
 });

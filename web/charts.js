@@ -157,18 +157,28 @@ export function renderPerLetter(root, results, { onSelect } = {}) {
   const wrap = el("div", "letters");
   for (const [letter, acc] of rows) {
     const error = 1 - acc;
-    const row = el("div", "letters__row");
+    const name = letter.toUpperCase();
+    // A real <button> when the row does something, rather than a div with a
+    // click handler and a pointer cursor. A div is unreachable by keyboard and
+    // invisible to a screen reader, and no rule engine can see the listener that
+    // makes it interactive -- it passes every automated check and still excludes
+    // anyone not using a mouse.
+    const row = el(onSelect ? "button" : "div", "letters__row");
+    if (onSelect) {
+      row.type = "button";
+      row.setAttribute(
+        "aria-label",
+        `${name}: ${pct(acc, 2)} correct, ${pct(error, 2)} wrong across five held-out signers. Show this letter.`
+      );
+      row.addEventListener("click", () => onSelect(name));
+    }
     if (weakest.has(letter)) row.dataset.weak = "true";
     const track = el("div", "letters__track");
     const fill = el("div", "letters__fill");
     fill.style.setProperty("--w", `${(error / worstError) * 100}%`);
     track.append(fill);
-    row.append(el("b", null, letter.toUpperCase()), track, el("span", "letters__val", pct(acc, 1)));
-    row.title = `${letter.toUpperCase()}: ${pct(acc, 2)} correct, ${pct(error, 2)} wrong, across five held-out signers`;
-    if (onSelect) {
-      row.style.cursor = "pointer";
-      row.addEventListener("click", () => onSelect(letter.toUpperCase()));
-    }
+    row.append(el("b", null, name), track, el("span", "letters__val", pct(acc, 1)));
+    row.title = `${name}: ${pct(acc, 2)} correct, ${pct(error, 2)} wrong, across five held-out signers`;
     wrap.append(row);
   }
   const scaleNote = el("p", "chart__foot",

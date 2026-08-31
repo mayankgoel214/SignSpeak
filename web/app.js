@@ -429,6 +429,7 @@ async function start() {
 
     stream = acquired;
     acquired = null;
+    resetRecognitionState();
     els.overlay.width = els.video.videoWidth || 640;
     els.overlay.height = els.video.videoHeight || 480;
     running = true;
@@ -452,13 +453,36 @@ function stop() {
   stream = null;
   els.video.srcObject = null;
   els.device.dataset.live = "false";
-  setNoHandHint(false);
-  noHandSince = 0;
   els.start.disabled = false;
   els.holdHint.textContent = "";
+  resetRecognitionState();
   setHold(0);
   showNoHand();
   setStatus("Camera stopped", "idle");
+}
+
+// Everything the loop accumulates while it runs. Leaving any of it behind across
+// a stop makes the next session behave on evidence from the last one:
+//
+//   lastCommitted survived, so the letter you happened to be holding when you
+//   stopped could not be spelled after restarting until you dropped your hand --
+//   the first letter of the new session silently doing nothing.
+//
+//   stableSince survived, so a sign already on screen when the camera restarted
+//   counted as having been held since before the camera was even on.
+//
+//   frameTimes survived, so the first frame rate reported after a restart was
+//   averaged across however long the camera had been off. The status strip
+//   presents that as a measurement.
+function resetRecognitionState() {
+  stableLabel = null;
+  stableSince = 0;
+  lastCommitted = null;
+  releaseSince = 0;
+  noHandSince = 0;
+  setNoHandHint(false);
+  frameTimes = [];
+  els.fps.replaceChildren(document.createTextNode("FPS "), Object.assign(document.createElement("b"), { textContent: "—" }));
 }
 
 // The same letter twice in a row is a real word ("HELLO"), so a committed letter

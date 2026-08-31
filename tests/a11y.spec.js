@@ -123,6 +123,28 @@ test.describe("accessibility", () => {
     await expect(page.locator("#device")).toHaveAttribute("data-live", "false");
   });
 
+  test("interactive chart rows are operable without a mouse", async ({ page }) => {
+    await page.goto("/index.html");
+    await expect(page.locator("#perletter .letters__row")).toHaveCount(24, { timeout: 20_000 });
+
+    // Anything that responds to a click must be a control, not a styled div. A
+    // div with a listener passes every automated rule and excludes every
+    // keyboard user, which is the worst combination available.
+    const tags = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("#perletter .letters__row")).map((el) => el.tagName)
+    );
+    expect(new Set(tags)).toEqual(new Set(["BUTTON"]));
+
+    const row = page.locator("#perletter .letters__row").first();
+    await expect(row).toHaveAttribute("aria-label", /correct.*wrong/);
+    await row.focus();
+    await page.keyboard.press("Enter");
+    // The worst letter is first, and selecting it must drive the alphabet panel.
+    await expect(page.locator("#detail-letter")).toHaveText(/^[A-Y]$/);
+    const chosen = await page.locator("#detail-letter").innerText();
+    expect(await row.locator("b").innerText()).toBe(chosen);
+  });
+
   test("the alphabet grid answers the keyboard", async ({ page }) => {
     await page.goto("/index.html");
     await expect(page.locator(".glyphcell")).toHaveCount(24, { timeout: 20_000 });

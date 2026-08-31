@@ -593,7 +593,19 @@ code {
   align-items: center;
   gap: var(--sp-3);
   font-size: var(--t-micro);
+  /* The interactive rows are real buttons; strip the chrome, keep the semantics. */
+  width: 100%;
+  padding: 2px 0;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
 }
+button.letters__row { cursor: pointer; }
+button.letters__row:hover { background: var(--n-200); }
 .letters__row b { font-family: var(--mono); font-weight: 600; color: var(--ink-dim); }
 .letters__row[data-weak="true"] b { color: var(--accent); }
 .letters__track { height: 9px; background: var(--n-300); border-radius: 3px; overflow: hidden; }
