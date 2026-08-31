@@ -155,6 +155,32 @@ test.describe("accessibility", () => {
     await expect(cell).toHaveAttribute("aria-selected", "true");
   });
 
+  test("no graphic is announced without saying what it is", async ({ page }) => {
+    await page.goto("/index.html");
+    await expect(page.locator(".glyphcell")).toHaveCount(24, { timeout: 20_000 });
+
+    // A canvas with no name, role or aria-hidden is read out as an empty
+    // graphic. Twenty-six of them was noise, not information, and no rule engine
+    // flags it because a bare canvas is not strictly a violation.
+    const unnamed = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("canvas")).filter(
+        (c) => !c.getAttribute("aria-label") && !c.getAttribute("role") && !c.getAttribute("aria-hidden")
+      ).length
+    );
+    expect(unnamed).toBe(0);
+
+    // The one canvas that carries meaning on its own says what it is showing.
+    await page.locator('.glyphcell[data-letter="W"]').click();
+    await expect(page.locator("#detail-canvas")).toHaveAttribute("aria-label", /letter W/);
+
+    // <output for> must point at a form control; a video is not one.
+    const badFor = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("output[for]")).map((o) => o.getAttribute("for"))
+    );
+    expect(badFor).toEqual([]);
+    await expect(page.locator("#spelled")).toHaveAttribute("aria-label", /spelled/i);
+  });
+
   test("the live readout announces itself", async ({ page }) => {
     await page.goto("/index.html");
     await expect(page.locator("#letter")).toHaveAttribute("aria-live", "polite");

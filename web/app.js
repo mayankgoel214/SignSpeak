@@ -197,6 +197,7 @@ function selectLetter(letter) {
     jointColor: "#f3f2ed",
   });
   els.detailLetter.textContent = letter;
+  els.detailCanvas.setAttribute("aria-label", `Reference hand pose for the letter ${letter}`);
 
   const acc = accuracyFor(letter);
   els.detailStat.textContent = acc === null ? "" : `${(acc * 100).toFixed(1)}% correct on a new signer`;
@@ -231,6 +232,9 @@ function renderAlphabet() {
     const canvas = document.createElement("canvas");
     canvas.width = 170;
     canvas.height = 170;
+    // The cell's caption already names the letter; an unlabelled canvas beside it
+    // is announced as an empty graphic and adds nothing but noise.
+    canvas.setAttribute("aria-hidden", "true");
     const caption = document.createElement("figcaption");
     caption.append(document.createTextNode(label));
     const stat = document.createElement("span");

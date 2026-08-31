@@ -56,7 +56,7 @@
       <div class="device" id="device" data-live="false">
         <div class="viewport">
           <video id="video" playsinline muted></video>
-          <canvas id="overlay" class="overlay"></canvas>
+          <canvas id="overlay" class="overlay" aria-hidden="true"></canvas>
           <div class="brackets" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           <p class="viewport__hint" id="no-hand-hint" role="status">
             No hand found. Move closer, so your hand fills more than about a third of the frame.
@@ -88,7 +88,7 @@
 
           <div class="buffer">
             <div class="buffer__label"><span>Spelled</span><span id="hold-hint"></span></div>
-            <output class="buffer__value" id="spelled" for="video"></output>
+            <output class="buffer__value" id="spelled" aria-label="Letters spelled so far"></output>
             <div class="buffer__actions">
               <button id="backspace" class="btn">Backspace</button>
               <button id="clear" class="btn">Clear</button>
@@ -226,7 +226,7 @@
 
       <div class="alphabet-layout">
         <div class="alphabet-detail" id="detail">
-          <canvas id="detail-canvas" width="380" height="380"></canvas>
+          <canvas id="detail-canvas" width="380" height="380" role="img" aria-label="Reference hand pose"></canvas>
           <div>
             <div class="alphabet-detail__letter" id="detail-letter">A</div>
             <div class="alphabet-detail__stat" id="detail-stat"></div>
