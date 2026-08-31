@@ -33,7 +33,7 @@ class LandmarkMLP(nn.Module):
         return self.net(x)
 
 
-def train(X, y, n_classes, epochs=EPOCHS, seed=SEED, verbose=False):
+def train(X, y, n_classes, epochs=EPOCHS, seed=SEED, verbose=False, in_dim=FEATURE_DIM):
     """Fixed hyperparameters, fixed epoch count, no early stopping.
 
     Nothing here reads the test set -- not even to decide when to stop -- so the
@@ -43,7 +43,7 @@ def train(X, y, n_classes, epochs=EPOCHS, seed=SEED, verbose=False):
     np.random.seed(seed)
 
     device = "cpu"
-    model = LandmarkMLP(n_classes).to(device)
+    model = LandmarkMLP(n_classes, in_dim=in_dim).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
     loss_fn = nn.CrossEntropyLoss(label_smoothing=0.05)

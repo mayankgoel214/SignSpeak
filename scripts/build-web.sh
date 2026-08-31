@@ -14,6 +14,7 @@ done
 cp eval/results.json web/models/results.json
 # Optional: the page degrades to hiding the calibration card if this is absent.
 [ -f eval/calibration.json ] && cp eval/calibration.json web/models/calibration.json
+[ -f eval/leakage.json ] && cp eval/leakage.json web/models/leakage.json
 
 # Stamp the real uncompressed byte sizes so the page can show honest download
 # progress. Content-Length is the *compressed* length on the wire, so using it as

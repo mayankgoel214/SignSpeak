@@ -119,7 +119,10 @@ async function loadResults() {
     `${(d.detection_rate * 100).toFixed(1)}% of the ${d.images_in_dataset.toLocaleString()} dataset images; ` +
     `the model is measured on those.`;
 
-  renderComparison(els.comparison, results);
+  const leakage = await fetch("./models/leakage.json")
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  renderComparison(els.comparison, results, leakage);
   renderFolds(els.folds, results);
   renderPerLetter(els.perletter, results, { onSelect: selectLetter });
   renderMatrix(els.matrix, results);

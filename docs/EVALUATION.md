@@ -25,6 +25,28 @@ Leave-one-signer-out removes that entirely: for each fold, every frame of the te
 is absent from training. It is the number that estimates what happens when a stranger opens
 the page.
 
+## The leak, measured
+
+The paragraph above is the usual argument, and it is usually left as an assertion. It is
+measurable: for every held-out sample, how far is the nearest thing the model trained on?
+Distances are in normalized feature units, where the whole hand spans 1 and two MediaPipe
+builds disagree on the same photograph by about 0.03.
+
+| protocol | median distance to nearest training sample | within 0.05 | within 0.02 |
+| --- | ---: | ---: | ---: |
+| random split | 0.1017 | 3.4% | 0.00% |
+| leave-one-signer-out | 0.2108 | 0.00% | 0.00% |
+
+Splitting by signer **doubles** the distance between a test hand and the closest thing the
+model has already seen, and takes the share of effectively-duplicate frames to zero. That
+gap is the leak, and it is why the random-split figure is reported only to be discarded.
+
+The same measurement rules out the failure that would look rigorous and not be — one
+recording session labelled as two people, which would make leave-one-signer-out leak while
+appearing careful. Every signer pair sits at a median of
+0.2061–0.3603 with **0.00%** of hands within 0.05 of another signer's, and there are no exact
+duplicate feature vectors anywhere in the dataset.
+
 ## Protocol
 
 - **Dataset**: Surrey ASL Fingerspelling (Pugeault & Bowden, 2011) — <https://www.cvssp.org/FingerSpellingKinect2011/>
@@ -156,6 +178,28 @@ reasonable knee:
 
 Discarding 12% of frames buys five points of accuracy; going further to 0.90 costs another
 14% of frames for under two. Reproduce with `python ml/measure_calibration.py`.
+
+## Does the depth coordinate earn its place
+
+Each landmark carries x, y and z. The third is MediaPipe's depth estimate, inferred from a
+single camera rather than measured, so a third of the input is guesswork of unknown value.
+Retraining under the identical protocol with z removed:
+
+| features | dims | mean accuracy |
+| --- | ---: | ---: |
+| x, y, z | 63 | 92.17% |
+| x, y only | 42 | 92.03% |
+
+A difference of **+0.14 points**, against a fold-to-fold spread of
+8.0 points on the same data. It is noise: on two of five folds the smaller feature
+vector is the better one.
+
+**z is kept anyway, and that is the interesting part.** The measured case for removing it is
+that a third of the input does nothing; the case against is that nothing here is evidence it
+hurts either, and swapping the shipped model would invalidate every number on this page, the
+calibration measurement and the walkthrough — real cost, to chase a difference smaller than
+the noise floor. What the ablation buys is not a change but a defensible answer to "why is
+that in there": because it was checked, and it does not matter.
 
 ## Honest limits
 

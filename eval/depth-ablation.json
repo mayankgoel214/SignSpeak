@@ -1,0 +1,30 @@
+{
+  "seed": 20260829,
+  "protocol": "leave-one-signer-out",
+  "arms": {
+    "xyz": {
+      "per_fold": {
+        "A": 0.9188,
+        "B": 0.9259,
+        "C": 0.9544,
+        "D": 0.8747,
+        "E": 0.9346
+      },
+      "mean": 0.9217,
+      "dims": 63
+    },
+    "xy_only": {
+      "per_fold": {
+        "A": 0.9261,
+        "B": 0.9254,
+        "C": 0.955,
+        "D": 0.8716,
+        "E": 0.9234
+      },
+      "mean": 0.9203,
+      "dims": 42
+    }
+  },
+  "difference_points": 0.14,
+  "verdict": "dropping z is no worse"
+}

@@ -53,7 +53,14 @@ http
       return res.end(fs.existsSync(notFound) ? fs.readFileSync(notFound) : "not found");
     }
 
+    // Streamed, not read whole. The site serves an 11.7 MB WebAssembly build and
+    // a 7.5 MB model; reading those synchronously into memory for every request
+    // blocks this server's event loop, and under a full browser suite that was
+    // enough to more than double the run and time a test out.
+    const { size } = fs.statSync(file);
     res.setHeader("Content-Type", TYPES[path.extname(file)] || "application/octet-stream");
-    res.end(fs.readFileSync(file));
+    res.setHeader("Content-Length", String(size));
+    if (req.method === "HEAD") return res.end();
+    fs.createReadStream(file).pipe(res);
   })
   .listen(PORT, () => console.log(`serving web/ with production headers on ${PORT}`));

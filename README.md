@@ -28,6 +28,16 @@ partly on images it trained on. The 6.5-point gap is what that mistake is worth
 on this dataset, and it is small only because the features are landmarks rather
 than pixels.
 
+That argument is usually left as an assertion. It is measured here
+(`ml/measure_leakage.py`): under a random split a held-out hand sits a median
+**0.10** from its nearest training neighbour and **3.4%** land within 0.05 —
+closer than two MediaPipe builds disagree on the same photograph. Splitting by
+signer doubles that distance to **0.21** and takes the share within 0.05 to
+**zero**. The same measurement rules out the failure that would look rigorous and
+not be — one recording session labelled as two people — since every signer pair
+sits at a median of 0.21–0.36 with no near-duplicates across them at all, and
+there are no exact duplicate feature vectors anywhere in the dataset.
+
 Full protocol, per-letter accuracy, confusion matrix and limitations:
 [`docs/EVALUATION.md`](docs/EVALUATION.md), generated from `eval/results.json`
 so that no figure in it can drift from the run that produced it.

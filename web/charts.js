@@ -29,7 +29,7 @@ function el(tag, className, text) {
 
 /* --------------------------------------------------- headline comparison */
 
-export function renderComparison(root, results) {
+export function renderComparison(root, results, leakage) {
   const si = results.signer_independent;
   const rs = results.random_split;
   root.innerHTML = "";
@@ -70,6 +70,20 @@ export function renderComparison(root, results) {
     el("span", null, "of the random-split score is near-duplicate frames leaking across the train/test boundary — the same model, the same code, measured carelessly.")
   );
   wrap.append(gap);
+
+  // The leak is usually asserted. This measures it: how far a held-out sample
+  // sits from the nearest thing the model trained on, under each protocol.
+  if (leakage) {
+    const rs = leakage.random_split;
+    const si = leakage.signer_independent.pooled;
+    const note = el("p", "chart__foot");
+    note.textContent =
+      `Measured rather than asserted: under a random split a held-out hand sits a median ${rs.median} ` +
+      `from its nearest training neighbour, and ${(rs["share_within_0.05"] * 100).toFixed(1)}% land within 0.05 — ` +
+      `closer than two MediaPipe builds disagree on the same photograph. Splitting by signer doubles that ` +
+      `distance to ${si.median}, and nothing at all falls within 0.05.`;
+    wrap.append(note);
+  }
   root.append(wrap);
 }
 
